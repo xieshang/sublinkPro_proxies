@@ -1,10 +1,38 @@
-
+# deps / build caches
 webs/node_modules
-.DS_Store
-*.DS_Store
+**/node_modules
+.yarn/cache
+webs/.yarn/cache
+
+# local runtime / data
 db
 logs
-README.md
-README.en-US.md
+out
+tmp
+.tmp
+.agents
+.agents/**
+.claude
+.claude/**
+
+# VCS / docs / scripts
+.git
+.gitignore
+.gitattributes
 docs
+*.md
 *.sh
+.github
+
+# local binaries / junk
+*.exe
+sublink.exe
+sublinkpro-linux-*
+docker-build.log
+.DS_Store
+**/.DS_Store
+
+# IDE
+.idea
+.vscode
+*.swp

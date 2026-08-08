@@ -99,6 +99,24 @@ func (sm *SchedulerManager) LoadFromDatabase() error {
 		}
 	}
 
+	// 加载 GitHub 抓取定时任务
+	githubConfigs, ghErr := models.ListEnabledGitHubCrawlConfigs()
+	if ghErr != nil {
+		utils.Error("从数据库加载 GitHub 抓取定时任务失败: %v", ghErr)
+	} else {
+		for _, cfg := range githubConfigs {
+			if cfg.CronExpr == "" {
+				continue
+			}
+			if err := sm.AddGitHubCrawlJob(cfg.ID, cfg.CronExpr); err != nil {
+				utils.Error("添加 GitHub 抓取定时任务失败 - ID: %d, Error: %v", cfg.ID, err)
+			} else {
+				utils.Info("成功添加 GitHub 抓取定时任务 - ID: %d, Name: %s, Cron: %s",
+					cfg.ID, cfg.Name, cfg.CronExpr)
+			}
+		}
+	}
+
 	// 启动 Host 过期清理任务
 	if err := sm.StartHostCleanupTask(); err != nil {
 		utils.Error("创建Host过期清理任务失败: %v", err)

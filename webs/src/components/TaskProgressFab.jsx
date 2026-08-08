@@ -136,6 +136,7 @@ const FabTaskItem = ({ task, currentTime, theme, tokens }) => {
     const meta = getTaskTypeMeta(task.taskType, t);
     const iconMap = {
       speed_test: SpeedIcon,
+      github_crawl: SpeedIcon,
       sub_update: CloudSyncIcon,
       tag_rule: LocalOfferIcon,
       db_migration: StorageIcon

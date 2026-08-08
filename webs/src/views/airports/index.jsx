@@ -162,6 +162,11 @@ const createAirportFormState = (overrides = {}) => ({
   nodeNameIntraUniquify: false,
   autoFillCountry: false,
   backfillExistingCountry: false,
+  type: 'url',
+  githubToken: '',
+  searchKeywords: '',
+  searchInterval: 3600,
+  collectionInterval: 86400,
   ...overrides
 });
 
@@ -542,7 +547,12 @@ export default function AirportList() {
       nodeNamePrefix: airport.nodeNamePrefix || '',
       nodeNameIntraUniquify: airport.nodeNameIntraUniquify || false,
       autoFillCountry: airport.autoFillCountry || false,
-      backfillExistingCountry: airport.backfillExistingCountry || false
+      backfillExistingCountry: airport.backfillExistingCountry || false,
+      type: airport.type || 'url',
+      githubToken: airport.githubToken || '',
+      searchKeywords: airport.searchKeywords || '',
+      searchInterval: airport.searchInterval || 3600,
+      collectionInterval: airport.collectionInterval || 86400
     });
     setIsEdit(true);
     setAirportForm(editForm);
@@ -741,14 +751,26 @@ export default function AirportList() {
       showMessage(t('airports.page.messages.nameRequired'), 'warning');
       return;
     }
-    if (!airportForm.url.trim()) {
-      showMessage(t('airports.page.messages.urlRequired'), 'warning');
-      return;
-    }
-    const urlPattern = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
-    if (!urlPattern.test(airportForm.url.trim())) {
-      showMessage(t('airports.page.messages.urlInvalid'), 'warning');
-      return;
+    const sourceType = (airportForm.type || 'url').toLowerCase();
+    if (sourceType === 'github') {
+      if (!`${airportForm.githubToken || ''}`.trim()) {
+        showMessage(t('airports.page.messages.githubTokenRequired'), 'warning');
+        return;
+      }
+      if (!`${airportForm.searchKeywords || ''}`.trim()) {
+        showMessage(t('airports.page.messages.searchKeywordsRequired'), 'warning');
+        return;
+      }
+    } else {
+      if (!airportForm.url.trim()) {
+        showMessage(t('airports.page.messages.urlRequired'), 'warning');
+        return;
+      }
+      const urlPattern = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
+      if (!urlPattern.test(airportForm.url.trim())) {
+        showMessage(t('airports.page.messages.urlInvalid'), 'warning');
+        return;
+      }
     }
     if (!airportForm.cronExpr.trim()) {
       showMessage(t('airports.page.messages.cronRequired'), 'warning');

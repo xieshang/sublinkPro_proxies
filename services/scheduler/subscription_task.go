@@ -67,7 +67,15 @@ func ExecuteSubscriptionTaskWithTrigger(id int, url string, subName string, trig
 		}
 	}
 
-	changedNodeIDs, usageInfo, err := node.LoadClashConfigFromURLWithReporter(ctx, id, url, subName, downloadWithProxy, proxyLink, userAgent, requestHeaders, reporter, fetchUsageInfo, skipTLSVerify)
+	var changedNodeIDs []int
+	var usageInfo *node.UsageInfo
+	if airport != nil && airport.IsGitHubSource() {
+		// GitHub 抓取已迁移到独立「GitHub 节点抓取」功能，机场不再执行 GitHub 爬取。
+		err = fmt.Errorf("机场 GitHub 来源已废弃，请到「订阅管理 → GitHub 节点抓取」使用独立抓取功能")
+		utils.Warn("跳过废弃的机场 GitHub 任务 - ID: %d, Name: %s", id, subName)
+	} else {
+		changedNodeIDs, usageInfo, err = node.LoadClashConfigFromURLWithReporter(ctx, id, url, subName, downloadWithProxy, proxyLink, userAgent, requestHeaders, reporter, fetchUsageInfo, skipTLSVerify)
+	}
 	if err != nil {
 		// 仅在失败时发送通知，成功通知由 node/sub.go 中的 scheduleClashToNodeLinks 发送
 		// 这样可以避免重复通知，且成功通知包含更详细的节点统计信息

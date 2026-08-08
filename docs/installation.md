@@ -75,6 +75,51 @@ docker-compose up -d
 <summary><b>Stable version</b></summary>
 
 ```bash
+### GitHub 爬虫配置
+
+支持独立 GitHub 节点抓取配置：
+
+#### 新增字段
+- `autoPromote`：抓取完成后自动加入总节点列表
+- `maxCrawlLinks`：目标有效入库节点数
+- `searchKeywords`：多行或逗号分隔，推荐使用 `clash free subscription` / `mihomo free nodes yaml`
+
+#### 使用示例 (docker-compose.yml)
+```yaml
+services:
+  sublinkpro:
+    image: zerodeng/sublink-pro
+    container_name: sublinkpro
+    ports:
+      - "8000:8000"
+    environment:
+      - SUBLINK_DB_PATH=/app/db
+      - SUBLINK_LOG_PATH=/app/logs
+      - SUBLINK_GITHUB_CRAWL_CONFIGS=1
+    volumes:
+      - ./db:/app/db
+      - ./logs:/app/logs
+    restart: unless-stopped
+```
+
+#### 启动抓取
+1. 访问管理界面新建配置
+2. 设置 `maxCrawlLinks`（建议从 10 开始测试）
+3. 开启 `autoPromote`（可选）
+4. 点击「开始」启动抓取
+5. 停止时自动刷新配置列表
+
+#### 注意事项
+- 建议配置 GitHub Personal Access Token
+- 同一仓库最多提取 3 个文件
+- 抓取成功后可手动或自动加入总节点列表
+- 支持代理拉取
+
+有关详细配置请查看：
+- `docs/features/github-crawl.md` (即将添加)
+- `skill-sublinkpro/reference/api.md`
+
+
 docker run --name sublinkpro -p 8000:8000 \
   -v $PWD/db:/app/db \
   -v $PWD/template:/app/template \

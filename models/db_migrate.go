@@ -203,6 +203,10 @@ func RunMigrations() error {
 		{name: "GroupAirportSort", model: &GroupAirportSort{}},
 		{name: "NodeCheckProfile", model: &NodeCheckProfile{}},
 		{name: "CountryRule", model: &CountryRule{}},
+		{name: "GitHubCrawlConfig", model: &GitHubCrawlConfig{}},
+		{name: "GitHubCrawlRun", model: &GitHubCrawlRun{}},
+		{name: "GitHubCrawlLog", model: &GitHubCrawlLog{}},
+		{name: "GitHubCrawlNode", model: &GitHubCrawlNode{}},
 	}
 
 	for _, table := range baseTables {

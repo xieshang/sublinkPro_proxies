@@ -30,6 +30,7 @@ const (
 	TaskTypeSubUpdate         TaskType = "sub_update"   // 订阅更新
 	TaskTypeTagRule           TaskType = "tag_rule"     // 标签规则
 	TaskTypeDatabaseMigration TaskType = "db_migration" // 数据库迁移
+	TaskTypeGitHubCrawl       TaskType = "github_crawl" // GitHub 节点抓取
 )
 
 // TaskTrigger 任务触发方式

@@ -25,6 +25,7 @@ const HostList = Loadable(lazy(() => import('views/hosts')));
 const CountryRulesPage = Loadable(lazy(() => import('views/country-rules')));
 const WebhookList = Loadable(lazy(() => import('views/webhooks')));
 const AirportList = Loadable(lazy(() => import('views/airports')));
+const GitHubCrawlList = Loadable(lazy(() => import('views/github-crawl')));
 const NodeCheckList = Loadable(lazy(() => import('views/node-check')));
 // ==============================|| MAIN ROUTING ||==============================  //
 
@@ -83,6 +84,10 @@ const MainRoutes = {
         {
           path: 'airports',
           element: <AirportList />
+        },
+        {
+          path: 'github-crawl',
+          element: <GitHubCrawlList />
         }
       ]
     },
@@ -135,3 +140,5 @@ const MainRoutes = {
 };
 
 export default MainRoutes;
+
+

@@ -116,7 +116,8 @@
       "monitor": "Monitor",
       "changelog": "Changelog",
       "userCenter": "User Center",
-      "appSettings": "Settings"
+      "appSettings": "Settings",
+      "githubCrawl": "GitHub Crawler"
     }
   },
   "common": {
@@ -256,13 +257,15 @@
         "nameRequired": "Enter an airport name",
         "urlRequired": "Enter a subscription URL",
         "urlInvalid": "Enter a valid subscription URL",
+        "searchKeywordsRequired": "Enter GitHub search keywords",
         "detectProfileRequired": "Select a check strategy first",
         "updateSuccessNeedPull": "Updated successfully. Node processing settings require a new pull before they apply.",
         "updateSuccess": "Updated successfully",
         "addSuccess": "Added successfully",
         "updateFailed": "Update failed",
         "addFailed": "Add failed",
-        "invalidRequestHeaderRow": "Request header row {{row}} is invalid: {{message}}"
+        "invalidRequestHeaderRow": "Request header row {{row}} is invalid: {{message}}",
+        "githubTokenRequired": "Enter a GitHub token (Code Search requires authentication)"
       }
     },
     "form": {
@@ -284,7 +287,12 @@
       "fields": {
         "name": "Name",
         "logoOptional": "Logo (optional)",
+        "sourceType": "Source type",
         "subscriptionUrl": "Subscription URL",
+        "githubToken": "GitHub token",
+        "searchKeywords": "Search keywords",
+        "searchInterval": "Search interval (seconds)",
+        "collectionInterval": "Collection interval (seconds)",
         "nodeGroup": "Node group",
         "remark": "Remark"
       },
@@ -293,11 +301,18 @@
         "subscriptionUrl": "Supports Clash YAML subscriptions and V2Ray Base64 subscriptions",
         "nodeGroup": "Nodes imported from this airport will automatically belong to this group",
         "remark": "Optional notes to help you manage airports and subscriptions",
-        "userAgent": "User-Agent used when pulling subscriptions. Leave blank if not needed."
+        "userAgent": "User-Agent used when pulling subscriptions. Leave blank if not needed.",
+        "sourceType": "Pull from a subscription URL, or crawl nodes via GitHub keyword search",
+        "githubToken": "Required. GitHub Code Search needs a Personal Access Token; classic tokens need code read access, fine-grained needs Contents: Read",
+        "searchKeywords": "Separate keywords with commas or new lines. Examples: clash.yaml, proxies filename:config.yaml",
+        "searchInterval": "Minimum interval between GitHub code searches. Default 3600 seconds",
+        "collectionInterval": "Minimum interval between actual import runs. Default 86400 seconds",
+        "githubHint": "A valid GitHub token is required. Use Scheduled Update to start/stop collection. Cron controls schedule. Intervals throttle requests."
       },
       "placeholders": {
         "remark": "Optional memo for this airport",
-        "userAgent": "Select or enter"
+        "userAgent": "Select or enter",
+        "searchKeywords": "clash proxy, free nodes, vless"
       },
       "logoPicker": {
         "set": "Click to set Logo",
@@ -372,6 +387,10 @@
       "nodeProcessing": {
         "alert": "The following rules take effect immediately when pulling subscriptions. Filtered nodes are not stored in the database.",
         "globalRulesLink": "global node processing rules"
+      },
+      "sourceTypes": {
+        "url": "Subscription URL",
+        "github": "GitHub crawl"
       }
     },
     "list": {
@@ -3465,7 +3484,8 @@
       "speedTest": "Speed test",
       "subUpdate": "Subscription update",
       "tagRule": "Tag rule",
-      "dbMigration": "Database migration"
+      "dbMigration": "Database migration",
+      "githubCrawl": "GitHub crawl/test"
     },
     "trigger": {
       "manual": "Manual",
@@ -3909,5 +3929,16 @@
   },
   "pagination": {
     "rowsPerPage": "Rows per page"
+  },
+  "githubCrawl": {
+    "fields": {
+      "searchKeywordsHelp": "One per line. Recommended: clash free subscription / mihomo free nodes yaml. Generic keywords auto-append defaults."
+    },
+    "clearLogs": "Clear",
+    "confirmClearLogs": "Clear crawl logs?",
+    "messages": {
+      "logsCleared": "Logs cleared"
+    },
+    "title": "GitHub Crawler"
   }
 }

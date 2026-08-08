@@ -221,6 +221,23 @@ export default function AirportFormDialog({
                 />
               </Box>
               <TextField
+                select
+                fullWidth
+                size="small"
+                label={t('airports.form.fields.sourceType')}
+                value={airportForm.type || 'url'}
+                helperText={t('airports.form.helpers.sourceType')}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setAirportForm({
+                    ...airportForm,
+                    type: nextType
+                  });
+                }}
+              >
+                <MenuItem value="url">{t('airports.form.sourceTypes.url')}</MenuItem>
+              </TextField>
+              <TextField
                 fullWidth
                 size="small"
                 label={t('airports.form.fields.subscriptionUrl')}
@@ -729,6 +746,10 @@ AirportFormDialog.propTypes = {
     id: PropTypes.number,
     name: PropTypes.string,
     url: PropTypes.string,
+    type: PropTypes.string,
+    searchKeywords: PropTypes.string,
+    searchInterval: PropTypes.number,
+    collectionInterval: PropTypes.number,
     cronExpr: PropTypes.string,
     enabled: PropTypes.bool,
     group: PropTypes.string,

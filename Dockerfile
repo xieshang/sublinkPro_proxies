@@ -18,6 +18,8 @@ RUN cd webs && yarn install && yarn run build
 # 2. 构建后端
 FROM golang:1.26.4 AS backend-builder
 WORKDIR /app
+ENV GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+ENV GOSUMDB=off
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -74,9 +76,13 @@ RUN apk add --no-cache tzdata ca-certificates curl && \
     if [ "$arch" = "arm" ] && [ -n "$variant" ] && [ "$variant" != "v7" ]; then \
       echo "unsupported cloudflared ARM variant: $variant" >&2; exit 1; \
     fi && \
-    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cloudflared_arch}" -o /usr/local/bin/cloudflared && \
-    chmod +x /usr/local/bin/cloudflared && \
-    cloudflared version
+    cloudflared_url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cloudflared_arch}" && \
+    if curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors "$cloudflared_url" -o /usr/local/bin/cloudflared; then \
+      chmod +x /usr/local/bin/cloudflared && cloudflared version; \
+    else \
+      echo "WARNING: cloudflared download failed; continuing without it" >&2; \
+      rm -f /usr/local/bin/cloudflared; \
+    fi
 RUN mkdir -p /app/db /app/logs /app/template && chmod 777 /app/db /app/logs /app/template
 
 COPY --from=backend-builder /app/sublinkPro /app/sublinkPro

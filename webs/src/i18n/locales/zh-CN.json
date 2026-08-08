@@ -116,7 +116,8 @@
       "monitor": "系统监控",
       "changelog": "更新日志",
       "userCenter": "个人中心",
-      "appSettings": "应用设置"
+      "appSettings": "应用设置",
+      "githubCrawl": "GitHub爬虫"
     }
   },
   "common": {
@@ -256,13 +257,15 @@
         "nameRequired": "请输入机场名称",
         "urlRequired": "请输入订阅地址",
         "urlInvalid": "请输入有效的订阅地址",
+        "searchKeywordsRequired": "请输入 GitHub 搜索关键字",
         "detectProfileRequired": "请先选择更新后检测策略",
         "updateSuccessNeedPull": "更新成功（节点处理配置需重新拉取后生效）",
         "updateSuccess": "更新成功",
         "addSuccess": "添加成功",
         "updateFailed": "更新失败",
         "addFailed": "添加失败",
-        "invalidRequestHeaderRow": "第 {{row}} 行自定义请求头无效：{{message}}"
+        "invalidRequestHeaderRow": "第 {{row}} 行自定义请求头无效：{{message}}",
+        "githubTokenRequired": "请填写 GitHub Token（Code Search 必须认证）"
       }
     },
     "form": {
@@ -284,20 +287,36 @@
       "fields": {
         "name": "名称",
         "logoOptional": "Logo（可选）",
+        "sourceType": "来源类型",
         "subscriptionUrl": "订阅地址",
+        "githubToken": "GitHub Token",
+        "searchKeywords": "搜索关键字",
+        "searchInterval": "搜索间隔（秒）",
+        "collectionInterval": "采集间隔（秒）",
         "nodeGroup": "节点分组",
         "remark": "备注"
       },
       "helpers": {
         "name": "机场名称不能重复，名称将作为节点来源",
+        "sourceType": "选择订阅 URL 拉取，或通过 GitHub 搜索关键字爬取节点",
         "subscriptionUrl": "支持 Clash YAML 订阅和 V2Ray Base64 订阅",
+        "githubToken": "必填。GitHub Code Search API 需要 Personal Access Token；classic 建议勾选 repo/public_repo 与 code 相关读权限，fine-grained 需 Contents: Read",
+        "searchKeywords": "多个关键字用逗号或换行分隔。示例：clash.yaml, proxies filename:config.yaml",
+        "searchInterval": "两次 GitHub 代码搜索之间的最小间隔，默认 3600 秒",
+        "collectionInterval": "两次实际导入采集之间的最小间隔，默认 86400 秒",
+        "githubHint": "必须填写有效 GitHub Token。启用下方「定时更新」可启停采集；Cron 控制定时。搜索/采集间隔用于节流。",
         "nodeGroup": "从此机场导入的节点将自动归属到此分组",
         "remark": "一些备注信息，方便你对机场和订阅进行管理",
         "userAgent": "拉取订阅时使用的 User-Agent，可留空"
       },
       "placeholders": {
         "remark": "可选，记录机场的备忘信息",
-        "userAgent": "选择或输入"
+        "userAgent": "选择或输入",
+        "searchKeywords": "clash proxy, free nodes, vless"
+      },
+      "sourceTypes": {
+        "url": "订阅 URL",
+        "github": "GitHub 爬取"
       },
       "logoPicker": {
         "set": "点击设置 Logo",
@@ -3465,7 +3484,8 @@
       "speedTest": "节点测速",
       "subUpdate": "订阅更新",
       "tagRule": "标签规则",
-      "dbMigration": "数据迁移"
+      "dbMigration": "数据迁移",
+      "githubCrawl": "GitHub 抓取/全测"
     },
     "trigger": {
       "manual": "手动",
@@ -3909,5 +3929,16 @@
   },
   "pagination": {
     "rowsPerPage": "每页行数"
+  },
+  "githubCrawl": {
+    "fields": {
+      "searchKeywordsHelp": "每行一个；推荐：clash free subscription / mihomo free nodes yaml。过泛关键字会自动补充默认词"
+    },
+    "clearLogs": "清空",
+    "confirmClearLogs": "确认清空抓取日志？",
+    "messages": {
+      "logsCleared": "日志已清空"
+    },
+    "title": "GitHub爬虫"
   }
 }

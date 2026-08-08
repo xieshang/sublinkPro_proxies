@@ -530,8 +530,14 @@ Base: `/api/v1/airports` (all write bodies are JSON)
 
 - **GET** `/airports` (query: `?page=1&pageSize=20`) — list
 - **GET** `/airports/{id}` — one
-- **POST** `/airports` — **JSON** create. Key fields (see `dto.AirportRequest`): `name`(required), `url`(required, valid URL), `cronExpr`(required), `enabled`, `group`, `downloadWithProxy`, `proxyLink`, `userAgent`, `fetchUsageInfo`, `skipTLSVerify`, plus filter/rename/dedup fields (`nodeNameWhitelist`, `nodeNameBlacklist`, `protocolWhitelist`, `protocolBlacklist`, `nodeNamePreprocess`, `deduplicationRule`, `nodeNameUniquify`, ...), and country-fill fields (`autoFillCountry`, `backfillExistingCountry`).
+- **POST** `/airports` — **JSON** create. Key fields (see `dto.AirportRequest`): `name`(required), `type` (`url` default | `github`), `url`(required for `url` type; optional for `github`, placeholder `github://search` may be stored), `cronExpr`(required), `enabled` (collection start/stop), `group`, `downloadWithProxy`, `proxyLink`, `userAgent`, `fetchUsageInfo`, `skipTLSVerify`, plus filter/rename/dedup fields (`nodeNameWhitelist`, `nodeNameBlacklist`, `protocolWhitelist`, `protocolBlacklist`, `nodeNamePreprocess`, `deduplicationRule`, `nodeNameUniquify`, ...), country-fill fields (`autoFillCountry`, `backfillExistingCountry`), and GitHub crawl fields when `type=github`: `githubToken` (optional PAT for code search rate limits), `searchKeywords`(required), `searchInterval`(seconds, default 3600), `collectionInterval`(seconds, default 86400).
 - **PUT** `/airports/{id}` — **JSON** update (same schema)
+
+GitHub source notes:
+
+- Use `enabled` + `cronExpr` for collection start/stop and schedule.
+- `searchInterval` throttles GitHub code search frequency; `collectionInterval` throttles actual import runs.
+- Pull endpoints (`/airports/{id}/pull`, `/airports/pull-all`) run the same crawler path as scheduled tasks.
 - **POST** `/airports/batch-update` — **JSON** `{ids:[...], applyGroup, group, applySchedule, cronExpr}`
 - **DELETE** `/airports/{id}` (query: `?deleteNodes=false`)
 - **POST** `/airports/pull-all` — pull all enabled airports now
@@ -759,3 +765,35 @@ Base: `/api/v1/total`
 - **Demo mode:** write endpoints marked demo-restricted are blocked when the instance runs in demo mode.
 - **Pagination:** most list endpoints accept `?page=&pageSize=` and then return `{items, total, page, pageSize, totalPages}`.
 - **Content type is per-endpoint** — see the Content-Type Trap section above. When in doubt, match the exact entry here rather than guessing.
+
+
+## GitHub Crawl 配置
+
+### 主要端点
+- `POST /api/v1/github-crawl` - 创建配置
+- `PUT /api/v1/github-crawl/{id}` - 更新配置（含 `autoPromote`）
+- `POST /api/v1/github-crawl/{id}/run` - 立即启动抓取
+- `POST /api/v1/github-crawl/{id}/stop` - 停止正在运行的抓取
+- `GET /api/v1/github-crawl/{id}/nodes` - 查看独立节点
+- `POST /api/v1/github-crawl/{id}/promote` - 手动加入总节点列表
+
+### 配置字段说明
+- `maxCrawlLinks`：**目标有效入库节点数**（测试通过并保存/更新后计数），达到此值后自动停止抓取
+- `autoPromote`：抓取成功后自动把本配置下**有效且未入库**的节点推入总节点列表
+- `searchKeywords`：多行或逗号分隔，推荐使用 `clash free subscription` / `mihomo free nodes yaml` 等
+
+### 抓取行为
+1. 多关键词搜索后按更新时间降序（最新在前）
+2. 逐仓库扫描，同一仓库最多提取 3 个文件
+3. 发现有效订阅文件后拉取、解析、测速、入库
+4. 达到 `maxCrawlLinks` 后停止
+
+### 注意事项
+- 建议配置 Personal Access Token（PAT）用于 Code Search，避免限流
+- 抓取成功后可手动或自动加入总节点列表
+- 同一仓库最多 3 个文件，超过后按分数+时间排序
+- 支持代理拉取（`useProxy`）
+
+### 相关字段
+- `MaxCrawlLinks`：目标有效入库数
+- `AutoPromote`：自动加入总表开关

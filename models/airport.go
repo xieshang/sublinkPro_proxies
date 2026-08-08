@@ -110,6 +110,12 @@ type Airport struct {
 	// 国家自动填充（拉取时生效）
 	AutoFillCountry         bool `gorm:"default:false" json:"autoFillCountry"`         // 新节点自动填充国家
 	BackfillExistingCountry bool `gorm:"default:false" json:"backfillExistingCountry"` // 回填现存节点国家
+	// GitHub 爬取专用
+	Type               string `json:"type" gorm:"default:'url'"`               // "github" | "url"
+	GitHubToken        string `json:"githubToken"`                             // GitHub Personal Access Token
+	SearchKeywords     string `json:"searchKeywords"`                          // 逗号分隔的关键字
+	SearchInterval     int    `json:"searchInterval" gorm:"default:3600"`      // 搜索间隔（秒）
+	CollectionInterval int    `json:"collectionInterval" gorm:"default:86400"` // 采集间隔（秒）
 }
 
 // TableName 指定表名
@@ -163,6 +169,7 @@ func (a *Airport) Update() error {
 		"NodeNameWhitelist", "NodeNameBlacklist", "ProtocolWhitelist", "ProtocolBlacklist", "NodeNamePreprocess",
 		"DeduplicationRule", "NodeNameUniquify", "NodeNamePrefix", "NodeNameIntraUniquify",
 		"AutoFillCountry", "BackfillExistingCountry",
+		"Type", "GitHubToken", "SearchKeywords", "SearchInterval", "CollectionInterval",
 	).Updates(a).Error
 	if err != nil {
 		return err
@@ -178,6 +185,43 @@ func (a *Airport) Update() error {
 func (a *Airport) normalizeCountryFillSettings() {
 	if a.BackfillExistingCountry {
 		a.AutoFillCountry = true
+	}
+	a.normalizeGitHubSettings()
+}
+
+// Airport source type constants
+const (
+	AirportTypeURL    = "url"
+	AirportTypeGitHub = "github"
+)
+
+// IsGitHubSource reports whether this airport pulls nodes from GitHub crawl.
+func (a *Airport) IsGitHubSource() bool {
+	return strings.EqualFold(strings.TrimSpace(a.Type), AirportTypeGitHub)
+}
+
+func (a *Airport) normalizeGitHubSettings() {
+	typeValue := strings.ToLower(strings.TrimSpace(a.Type))
+	switch typeValue {
+	case AirportTypeGitHub:
+		a.Type = AirportTypeGitHub
+	default:
+		a.Type = AirportTypeURL
+	}
+
+	a.GitHubToken = strings.TrimSpace(a.GitHubToken)
+	a.SearchKeywords = strings.TrimSpace(a.SearchKeywords)
+
+	if a.SearchInterval <= 0 {
+		a.SearchInterval = 3600
+	}
+	if a.CollectionInterval <= 0 {
+		a.CollectionInterval = 86400
+	}
+
+	// GitHub sources do not require a subscription URL; keep a stable placeholder for identity checks.
+	if a.Type == AirportTypeGitHub && strings.TrimSpace(a.URL) == "" {
+		a.URL = "github://search"
 	}
 }
 

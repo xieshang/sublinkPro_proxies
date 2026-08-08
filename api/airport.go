@@ -160,6 +160,54 @@ func AirportGet(c *gin.Context) {
 	utils.OkDetailed(c, "获取成功", airport)
 }
 
+// validateAirportRequest 校验机场请求（按来源类型区分）
+func validateAirportRequest(req *dto.AirportRequest) error {
+	if req == nil {
+		return errors.New("请求不能为空")
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	req.URL = strings.TrimSpace(req.URL)
+	req.CronExpr = strings.TrimSpace(req.CronExpr)
+	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
+	req.GitHubToken = strings.TrimSpace(req.GitHubToken)
+	req.SearchKeywords = strings.TrimSpace(req.SearchKeywords)
+
+	if req.Name == "" {
+		return errors.New("机场名称不能为空")
+	}
+	if req.CronExpr == "" || !validateCron(req.CronExpr) {
+		return errors.New("Cron表达式格式错误")
+	}
+
+	switch req.Type {
+	case "", models.AirportTypeURL:
+		req.Type = models.AirportTypeURL
+		if req.URL == "" {
+			return errors.New("订阅地址不能为空")
+		}
+		if !(strings.HasPrefix(req.URL, "http://") || strings.HasPrefix(req.URL, "https://")) {
+			return errors.New("订阅地址必须是 http/https URL")
+		}
+	case models.AirportTypeGitHub:
+		if req.GitHubToken == "" {
+			return errors.New("GitHub Token 不能为空（Code Search API 需要认证）")
+		}
+		if req.SearchKeywords == "" {
+			return errors.New("GitHub 搜索关键字不能为空")
+		}
+		if req.SearchInterval < 0 {
+			return errors.New("搜索间隔不能为负数")
+		}
+		if req.CollectionInterval < 0 {
+			return errors.New("采集间隔不能为负数")
+		}
+	default:
+		return errors.New("不支持的机场类型，仅支持 url 或 github")
+	}
+	return nil
+}
+
 // AirportAdd 添加机场
 func AirportAdd(c *gin.Context) {
 	var req dto.AirportRequest
@@ -168,8 +216,8 @@ func AirportAdd(c *gin.Context) {
 		return
 	}
 
-	if !validateCron(req.CronExpr) {
-		utils.FailWithMsg(c, "Cron表达式格式错误")
+	if err := validateAirportRequest(&req); err != nil {
+		utils.FailWithMsg(c, err.Error())
 		return
 	}
 
@@ -194,6 +242,10 @@ func AirportAdd(c *gin.Context) {
 		UpdateAfterDetect:            req.UpdateAfterDetect,
 		UpdateAfterDetectProfileID:   req.UpdateAfterDetectProfileID,
 		UpdateAfterDetectChangedOnly: req.UpdateAfterDetectChangedOnly,
+		Type:                         req.Type,
+		SearchKeywords:               req.SearchKeywords,
+		SearchInterval:               req.SearchInterval,
+		CollectionInterval:           req.CollectionInterval,
 		Remark:                       req.Remark,
 		Logo:                         req.Logo,
 		NodeNameWhitelist:            req.NodeNameWhitelist,
@@ -223,9 +275,9 @@ func AirportAdd(c *gin.Context) {
 	// 添加定时任务
 	if req.Enabled {
 		sch := scheduler.GetSchedulerManager()
-		_ = sch.AddJob(airport.ID, req.CronExpr, func(id int, url string, name string) {
+		_ = sch.AddJob(airport.ID, airport.CronExpr, func(id int, url string, name string) {
 			scheduler.ExecuteSubscriptionTask(id, url, name)
-		}, airport.ID, req.URL, req.Name)
+		}, airport.ID, airport.URL, airport.Name)
 	}
 
 	// 立即执行一次
@@ -251,8 +303,8 @@ func AirportUpdate(c *gin.Context) {
 		return
 	}
 
-	if !validateCron(req.CronExpr) {
-		utils.FailWithMsg(c, "Cron表达式格式错误")
+	if err := validateAirportRequest(&req); err != nil {
+		utils.FailWithMsg(c, err.Error())
 		return
 	}
 
@@ -294,6 +346,12 @@ func AirportUpdate(c *gin.Context) {
 	existing.UpdateAfterDetect = req.UpdateAfterDetect
 	existing.UpdateAfterDetectProfileID = req.UpdateAfterDetectProfileID
 	existing.UpdateAfterDetectChangedOnly = req.UpdateAfterDetectChangedOnly
+	// GitHub 爬取专用
+	existing.Type = req.Type
+	existing.GitHubToken = req.GitHubToken
+	existing.SearchKeywords = req.SearchKeywords
+	existing.SearchInterval = req.SearchInterval
+	existing.CollectionInterval = req.CollectionInterval
 	existing.Remark = req.Remark
 	existing.Logo = req.Logo
 	existing.NodeNameWhitelist = req.NodeNameWhitelist

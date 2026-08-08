@@ -647,6 +647,7 @@ func Run() {
 	routers.Host(r)
 	routers.Share(r)
 	routers.Airport(r)
+	routers.GitHubCrawl(r)
 	routers.GroupSort(r)
 	routers.NodeCheck(r)
 	routers.CountryRule(r)

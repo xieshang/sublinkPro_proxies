@@ -32,7 +32,7 @@ type UserAccessKey struct {
 type AirportRequest struct {
 	ID                           int                    `json:"id"`
 	Name                         string                 `json:"name" binding:"required"`
-	URL                          string                 `json:"url" binding:"required,url"`
+	URL                          string                 `json:"url"`
 	CronExpr                     string                 `json:"cronExpr" binding:"required"`
 	Enabled                      bool                   `json:"enabled"`
 	Group                        string                 `json:"group"`
@@ -63,6 +63,12 @@ type AirportRequest struct {
 	// 国家自动填充（拉取时生效）
 	AutoFillCountry         bool `json:"autoFillCountry"`         // 新节点自动填充国家
 	BackfillExistingCountry bool `json:"backfillExistingCountry"` // 回填现存节点国家
+	// GitHub 爬取专用
+	Type               string `json:"type"`               // "github" | "url"，默认 url
+	GitHubToken        string `json:"githubToken"`        // GitHub Personal Access Token
+	SearchKeywords     string `json:"searchKeywords"`     // 逗号/换行分隔的搜索关键字
+	SearchInterval     int    `json:"searchInterval"`     // 搜索间隔（秒），默认 3600
+	CollectionInterval int    `json:"collectionInterval"` // 采集间隔（秒），默认 86400
 }
 
 // AirportBatchUpdateRequest 机场批量更新请求体结构

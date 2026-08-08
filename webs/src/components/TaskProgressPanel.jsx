@@ -71,6 +71,7 @@ const TaskProgressItem = ({ task, currentTime, onStopTask, isStopping }) => {
     const meta = getTaskTypeMeta(task.taskType, t);
     const iconMap = {
       speed_test: SpeedIcon,
+      github_crawl: SpeedIcon,
       sub_update: CloudSyncIcon,
       tag_rule: LocalOfferIcon,
       db_migration: StorageIcon
@@ -80,7 +81,7 @@ const TaskProgressItem = ({ task, currentTime, onStopTask, isStopping }) => {
       icon: iconMap[task.taskType] || CloudSyncIcon,
       label: meta.label,
       accentColor: meta.color,
-      canStop: task.taskType === 'speed_test' || task.taskType === 'sub_update'
+      canStop: task.taskType === 'speed_test' || task.taskType === 'sub_update' || task.taskType === 'github_crawl'
     };
   }, [task.taskType, t]);
 

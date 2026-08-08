@@ -11,7 +11,8 @@ import {
   IconWorld,
   IconPlane,
   IconFlag,
-  IconRefreshDot
+  IconRefreshDot,
+  IconBrandGithub
 } from '@tabler/icons-react';
 
 // ==============================|| SUBSCRIPTION MENU ITEMS ||============================== //
@@ -47,6 +48,15 @@ const subscription = {
       type: 'item',
       url: '/subscription/node-check',
       icon: IconDeviceDesktopAnalytics,
+      breadcrumbs: true
+    },
+    {
+      id: 'github-crawl',
+      title: 'GitHub Nodes',
+      titleKey: 'navigation.items.githubCrawl',
+      type: 'item',
+      url: '/subscription/github-crawl',
+      icon: IconBrandGithub,
       breadcrumbs: true
     },
     {
