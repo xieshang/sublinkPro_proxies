@@ -438,16 +438,18 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			}
 
 			remaining := targetValid - validCount
+			// 测速数量：按剩余目标放大采样（约 3 倍），至少测 githubMaxTestPerSub；
+			// 不再使用单文件 120 硬顶——目标仍大时应尽量测完本文件解析到的节点。
 			maxTest := remaining * 3
 			if maxTest < githubMaxTestPerSub {
 				maxTest = githubMaxTestPerSub
 			}
-			if maxTest > 120 {
-				maxTest = 120
+			if n := len(batch); n > 0 && maxTest > n {
+				maxTest = n
 			}
 
-			logFn("info", fmt.Sprintf("解析到 %d 个节点，开始测速入库（本文件最多测 %d，剩余目标 %d）",
-				len(batch), maxTest, remaining))
+			logFn("info", fmt.Sprintf("解析到 %d 个节点，开始测速入库（本文件测 %d/%d，剩余目标 %d）",
+				len(batch), maxTest, len(batch), remaining))
 			allProxies = append(allProxies, batch...)
 			batchNodes := proxiesToGitHubNodes(cfg.ID, runID, batch)
 			a, te, pa := testAndSaveGitHubProxies(ctx, batchNodes, logFn, maxTest)

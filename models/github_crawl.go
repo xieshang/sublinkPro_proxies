@@ -364,10 +364,63 @@ func ClearGitHubCrawlNodes(configID int) error {
 	return database.DB.Where("config_id = ?", configID).Delete(&GitHubCrawlNode{}).Error
 }
 
-// DeleteInvalidGitHubCrawlNodes 删除无效节点（is_valid = false）
-func DeleteInvalidGitHubCrawlNodes(configID int) (int64, error) {
-	res := database.DB.Where("config_id = ? AND is_valid = ?", configID, false).Delete(&GitHubCrawlNode{})
-	return res.RowsAffected, res.Error
+// DeleteInvalidGitHubCrawlNodes 删除无效节点（is_valid = false）。
+// 若节点曾加入总节点列表，同步从总列表删除对应节点，避免总表残留失效节点。
+// 返回：独立节点删除数、总列表删除数。
+func DeleteInvalidGitHubCrawlNodes(configID int) (crawlDeleted int64, totalDeleted int64, err error) {
+	var nodes []GitHubCrawlNode
+	if err = database.DB.Where("config_id = ? AND is_valid = ?", configID, false).Find(&nodes).Error; err != nil {
+		return 0, 0, err
+	}
+	if len(nodes) == 0 {
+		return 0, 0, nil
+	}
+
+	totalIDSet := make(map[int]struct{})
+	links := make([]string, 0, len(nodes))
+	crawlIDs := make([]int, 0, len(nodes))
+	for _, n := range nodes {
+		crawlIDs = append(crawlIDs, n.ID)
+		if n.PromotedNodeID > 0 {
+			totalIDSet[n.PromotedNodeID] = struct{}{}
+		}
+		if link := strings.TrimSpace(n.Link); link != "" {
+			links = append(links, link)
+		}
+	}
+
+	// 按本配置 github-crawl 来源 + 链接补齐，覆盖 promoted_node_id 丢失的情况
+	if len(links) > 0 {
+		var byLink []int
+		if err = database.DB.Model(&Node{}).
+			Where("source = ? AND source_id = ? AND link IN ?", "github-crawl", configID, links).
+			Pluck("id", &byLink).Error; err != nil {
+			return 0, 0, err
+		}
+		for _, id := range byLink {
+			if id > 0 {
+				totalIDSet[id] = struct{}{}
+			}
+		}
+	}
+
+	if len(totalIDSet) > 0 {
+		totalIDs := make([]int, 0, len(totalIDSet))
+		for id := range totalIDSet {
+			if id > 0 {
+				totalIDs = append(totalIDs, id)
+			}
+		}
+		if len(totalIDs) > 0 {
+			if err = BatchDel(totalIDs); err != nil {
+				return 0, 0, err
+			}
+			totalDeleted = int64(len(totalIDs))
+		}
+	}
+
+	res := database.DB.Where("config_id = ? AND id IN ?", configID, crawlIDs).Delete(&GitHubCrawlNode{})
+	return res.RowsAffected, totalDeleted, res.Error
 }
 
 // DeleteGitHubCrawlNodesByIDs 按 ID 删除独立节点（限定 configID 防止误删）

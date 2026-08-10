@@ -333,19 +333,26 @@ func GitHubCrawlDeleteNodes(c *gin.Context) {
 	utils.OkDetailed(c, "已删除选中节点", gin.H{"deleted": n})
 }
 
-// GitHubCrawlDeleteInvalidNodes 删除无效节点
+// GitHubCrawlDeleteInvalidNodes 删除无效节点（同时清理总节点列表中的对应节点）
 func GitHubCrawlDeleteInvalidNodes(c *gin.Context) {
 	id, ok := parseGitHubCrawlID(c)
 	if !ok {
 		return
 	}
-	n, err := models.DeleteInvalidGitHubCrawlNodes(id)
+	n, totalRemoved, err := models.DeleteInvalidGitHubCrawlNodes(id)
 	if err != nil {
 		utils.FailWithMsg(c, "删除无效节点失败: "+err.Error())
 		return
 	}
-	appendGitHubCrawlOpLog(id, "info", fmt.Sprintf("已删除无效节点 %d 个", n))
-	utils.OkDetailed(c, "已删除无效节点", gin.H{"deleted": n})
+	msg := fmt.Sprintf("已删除无效节点 %d 个", n)
+	if totalRemoved > 0 {
+		msg = fmt.Sprintf("%s（同步清理总列表 %d 个）", msg, totalRemoved)
+	}
+	appendGitHubCrawlOpLog(id, "info", msg)
+	utils.OkDetailed(c, "已删除无效节点", gin.H{
+		"deleted":      n,
+		"totalRemoved": totalRemoved,
+	})
 }
 
 // GitHubCrawlClearLogs 清空抓取日志

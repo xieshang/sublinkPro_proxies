@@ -358,14 +358,28 @@ export default function GitHubCrawlPage() {
 
   const handleDeleteInvalid = async () => {
     if (!selectedId) return;
-    if (!window.confirm(t('githubCrawl.confirmDeleteInvalid', '确认删除全部无效节点？'))) return;
+    if (
+      !window.confirm(
+        t(
+          'githubCrawl.confirmDeleteInvalid',
+          '确认删除全部无效节点？已加入总节点列表的对应节点也会一并删除。'
+        )
+      )
+    )
+      return;
     try {
       const res = await deleteInvalidGitHubCrawlNodes(selectedId);
       const deleted = res?.data?.deleted ?? res?.deleted ?? 0;
+      const totalRemoved = res?.data?.totalRemoved ?? res?.totalRemoved ?? 0;
       setPage(0);
       setSelectedNodeIds([]);
       await loadNodes(selectedId);
-      setMessage(t('githubCrawl.messages.deletedInvalid', '已删除 {{n}} 个无效节点', { n: deleted }));
+      setMessage(
+        t('githubCrawl.messages.deletedInvalid', '已删除 {{n}} 个无效节点（同步清理总列表 {{m}} 个）', {
+          n: deleted,
+          m: totalRemoved
+        })
+      );
     } catch (e) {
       setError(e.message || 'delete invalid failed');
     }

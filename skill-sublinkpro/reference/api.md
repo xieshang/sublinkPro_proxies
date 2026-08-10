@@ -1,6 +1,6 @@
 # SublinkPro API Reference
+- `DELETE /api/v1/github-crawl/{id}/nodes/invalid` - 删除无效节点（同时清理总节点列表中对应的节点）
 
-Complete, verified endpoint catalog for the SublinkPro REST API. Base URL: `http://<host>:8000` (default port).
 
 Every command below was cross-checked against the backend handlers (`api/*.go`, `routers/*.go`) **and** the live frontend calls (`webs/src/api/*.js`), which are the authoritative source for paths, methods, content types, and exact field names.
 
@@ -776,6 +776,7 @@ Base: `/api/v1/total`
 - `POST /api/v1/github-crawl/{id}/stop` - 停止正在运行的抓取
 - `GET /api/v1/github-crawl/{id}/nodes` - 查看独立节点
 - `POST /api/v1/github-crawl/{id}/promote` - 手动加入总节点列表
+- `DELETE /api/v1/github-crawl/{id}/nodes/invalid` - 删除无效节点（同时清理总节点列表中对应的节点）
 
 ### 配置字段说明
 - `maxCrawlLinks`：**目标有效入库节点数**（测试通过并保存/更新后计数），达到此值后自动停止抓取
@@ -791,6 +792,7 @@ Base: `/api/v1/total`
 ### 注意事项
 - 建议配置 Personal Access Token（PAT）用于 Code Search，避免限流
 - 抓取成功后可手动或自动加入总节点列表
+- 删除无效节点时，会同步清理总节点列表中对应的节点
 - 同一仓库最多 3 个文件，超过后按分数+时间排序
 - 支持代理拉取（`useProxy`）
 
