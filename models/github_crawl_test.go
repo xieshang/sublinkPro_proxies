@@ -155,3 +155,62 @@ func TestDeleteInvalidGitHubCrawlNodesAlsoRemovesFromTotalList(t *testing.T) {
 		t.Fatalf("by-link total node %d should be deleted", totalByLink.ID)
 	}
 }
+
+func setupGitHubCrawlLogTestDB(t *testing.T) {
+	t.Helper()
+
+	oldDB := database.DB
+	oldDialect := database.Dialect
+	oldInitialized := database.IsInitialized
+
+	db, err := gorm.Open(sqlite.Open(testutil.UniqueMemoryDSN(t, "github_crawl_log_test")), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&GitHubCrawlLog{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+
+	database.DB = db
+	database.Dialect = database.DialectSQLite
+	database.IsInitialized = false
+
+	t.Cleanup(func() {
+		database.DB = oldDB
+		database.Dialect = oldDialect
+		database.IsInitialized = oldInitialized
+		testutil.CloseDB(t, db)
+	})
+}
+
+func TestAppendGitHubCrawlLogKeepsMax500(t *testing.T) {
+	setupGitHubCrawlLogTestDB(t)
+
+	const configID = 42
+	// 写入超过上限
+	for i := 0; i < githubCrawlLogMaxKeep+120; i++ {
+		if err := AppendGitHubCrawlLog(1, configID, "info", "log-line"); err != nil {
+			t.Fatalf("append log %d: %v", i, err)
+		}
+	}
+
+	var count int64
+	if err := database.DB.Model(&GitHubCrawlLog{}).Where("config_id = ?", configID).Count(&count).Error; err != nil {
+		t.Fatalf("count logs: %v", err)
+	}
+	if count != int64(githubCrawlLogMaxKeep) {
+		t.Fatalf("expected %d logs kept, got %d", githubCrawlLogMaxKeep, count)
+	}
+
+	list, err := ListGitHubCrawlLogs(0, configID, 0, githubCrawlLogMaxKeep)
+	if err != nil {
+		t.Fatalf("list logs: %v", err)
+	}
+	if len(list) != githubCrawlLogMaxKeep {
+		t.Fatalf("list expected %d, got %d", githubCrawlLogMaxKeep, len(list))
+	}
+	// 升序且为最新一段
+	if list[0].ID >= list[len(list)-1].ID {
+		t.Fatalf("list should be ascending by id")
+	}
+}

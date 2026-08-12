@@ -199,7 +199,10 @@ type GitHubCrawlLog struct {
 
 func (GitHubCrawlLog) TableName() string { return "github_crawl_logs" }
 
-// AppendGitHubCrawlLog 追加日志
+// githubCrawlLogMaxKeep 每个配置最多保留的日志条数，防止表无限增长占内存/磁盘。
+const githubCrawlLogMaxKeep = 500
+
+// AppendGitHubCrawlLog 追加日志，并裁剪该配置超出上限的旧日志。
 func AppendGitHubCrawlLog(runID, configID int, level, message string) error {
 	level = strings.TrimSpace(level)
 	if level == "" {
@@ -211,7 +214,44 @@ func AppendGitHubCrawlLog(runID, configID int, level, message string) error {
 		Level:    level,
 		Message:  message,
 	}
-	return database.DB.Create(log).Error
+	if err := database.DB.Create(log).Error; err != nil {
+		return err
+	}
+	if configID > 0 {
+		_ = trimGitHubCrawlLogs(configID, githubCrawlLogMaxKeep)
+	}
+	return nil
+}
+
+// trimGitHubCrawlLogs 仅保留某配置最新 keep 条日志，删除更旧记录。
+func trimGitHubCrawlLogs(configID, keep int) error {
+	if configID <= 0 || keep <= 0 {
+		return nil
+	}
+	var count int64
+	if err := database.DB.Model(&GitHubCrawlLog{}).Where("config_id = ?", configID).Count(&count).Error; err != nil {
+		return err
+	}
+	if count <= int64(keep) {
+		return nil
+	}
+	// 第 keep 新的 id：保留 id >= 该值，删除更旧的
+	var keepFrom struct {
+		ID int
+	}
+	if err := database.DB.Model(&GitHubCrawlLog{}).
+		Select("id").
+		Where("config_id = ?", configID).
+		Order("id DESC").
+		Offset(keep - 1).
+		Limit(1).
+		Scan(&keepFrom).Error; err != nil {
+		return err
+	}
+	if keepFrom.ID <= 0 {
+		return nil
+	}
+	return database.DB.Where("config_id = ? AND id < ?", configID, keepFrom.ID).Delete(&GitHubCrawlLog{}).Error
 }
 
 // ListGitHubCrawlRuns 运行记录
@@ -227,13 +267,14 @@ func ListGitHubCrawlRuns(configID, limit int) ([]GitHubCrawlRun, error) {
 	return list, err
 }
 
-// ListGitHubCrawlLogs 抓取日志（支持 afterId 增量）
+// ListGitHubCrawlLogs 抓取日志（支持 afterId 增量）。
+// afterID=0 时返回最新 limit 条（升序）；afterID>0 时返回其后增量。
 func ListGitHubCrawlLogs(runID, configID, afterID, limit int) ([]GitHubCrawlLog, error) {
 	if limit <= 0 {
 		limit = 200
 	}
-	if limit > 500 {
-		limit = 500
+	if limit > githubCrawlLogMaxKeep {
+		limit = githubCrawlLogMaxKeep
 	}
 	q := database.DB.Model(&GitHubCrawlLog{})
 	if runID > 0 {
@@ -243,10 +284,19 @@ func ListGitHubCrawlLogs(runID, configID, afterID, limit int) ([]GitHubCrawlLog,
 	}
 	if afterID > 0 {
 		q = q.Where("id > ?", afterID)
+		var list []GitHubCrawlLog
+		err := q.Order("id ASC").Limit(limit).Find(&list).Error
+		return list, err
 	}
-	var list []GitHubCrawlLog
-	err := q.Order("id ASC").Limit(limit).Find(&list).Error
-	return list, err
+	// 全量拉取：取最新 limit 条，再按 id 升序返回，便于前端直接展示
+	var latest []GitHubCrawlLog
+	if err := q.Order("id DESC").Limit(limit).Find(&latest).Error; err != nil {
+		return nil, err
+	}
+	for i, j := 0, len(latest)-1; i < j; i, j = i+1, j-1 {
+		latest[i], latest[j] = latest[j], latest[i]
+	}
+	return latest, nil
 }
 
 // ClearGitHubCrawlLogs 清空某配置日志

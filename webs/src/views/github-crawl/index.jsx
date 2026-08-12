@@ -64,6 +64,9 @@ import {
 } from 'api/githubCrawl';
 import { getSpeedTestConfig } from 'api/nodes';
 
+// 与后端 githubCrawlLogMaxKeep 一致：前端日志最多缓存 500 行
+const GITHUB_CRAWL_LOG_MAX = 500;
+
 const emptyForm = {
   name: '',
   githubToken: '',
@@ -179,16 +182,22 @@ export default function GitHubCrawlPage() {
   const loadLogs = useCallback(async (configId, afterId = 0) => {
     if (!configId) return;
     try {
-      const res = await listGitHubCrawlLogs(configId, { afterId, limit: 100 });
+      // 全量拉最新 500；增量轮询仍用较小 limit
+      const res = await listGitHubCrawlLogs(configId, {
+        afterId,
+        limit: afterId > 0 ? 100 : GITHUB_CRAWL_LOG_MAX
+      });
       const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
       if (afterId > 0) {
-        // Cap retained logs to avoid unbounded growth during long crawls.
+        // 前端最多缓存 500 行，与后端保留上限一致，避免长时抓取撑爆内存
         setLogs((prev) => {
           const merged = [...prev, ...list];
-          return merged.length > 300 ? merged.slice(merged.length - 300) : merged;
+          return merged.length > GITHUB_CRAWL_LOG_MAX
+            ? merged.slice(merged.length - GITHUB_CRAWL_LOG_MAX)
+            : merged;
         });
       } else {
-        setLogs(list.length > 300 ? list.slice(list.length - 300) : list);
+        setLogs(list.length > GITHUB_CRAWL_LOG_MAX ? list.slice(list.length - GITHUB_CRAWL_LOG_MAX) : list);
       }
       if (list.length > 0) {
         setLogAfterId(list[list.length - 1].id);
