@@ -143,31 +143,36 @@ If your earlier instance used SQLite and you now want to migrate to MySQL or Pos
 
 ---
 
-## 📖 Documentation
+## 🛠️ 从源码编译运行（推荐开发者）
 
-### 🔧 Installation and Configuration
+### 前端构建
+```bash
+cd webs
+corepack enable          # 启用 yarn 4
+yarn install
+yarn run build           # 输出到 webs/dist
+```
 
-| Document | Description |
-|:---|:---|
-| [📦 Installation](docs/installation.md) | Docker, one line scripts, updates, Watchtower automatic updates |
-| [⚙️ Configuration](docs/configuration.md) | Environment variables, command line flags, CAPTCHA configuration |
+### 后端构建
+```bash
+# 推荐方式（包含前端静态资源）
+go build -tags=prod -ldflags="-s -w" -o sublinkPro
+# 或仅后端（前端已预构建）
+go build -o sublinkPro .
+```
 
-### ✨ Feature Guides
+### 运行
+```bash
+./sublinkPro
+```
 
-| Document | Description |
-|:---|:---|
-| [🏷️ Smart tag system](docs/features/tags.md) | Automatic rule based tagging, no code filtering, IP quality rules |
-| [⚡ Speed test system](docs/features/speedtest.md) | Test design, IP quality checks, unlock checks, parameter tuning |
-| [🌍 Unlock checks](docs/features/unlock-check.md) | Streaming and AI availability checks, Provider architecture, extensions |
-| [🔗 Chain proxy](docs/features/chain-proxy.md) | Dialer-Proxy, condition based node selection, configuration flow |
-| [🤖 AI template editing](docs/features/template-ai.md) | Operation based previews, read-only diff review, accept into editor, normal save |
-| [✈️ Airport management](docs/features/airport.md) | Subscription import, scheduled updates, traffic monitoring |
-| [📋 Subscription sharing](docs/features/subscription-share.md) | Multiple links, expiration policies, access statistics |
-| [🌐 Host management](docs/features/host.md) | Domain mappings, DNS configuration, speed test persistence |
-| [☁️ Cloudflare Tunnel](docs/features/cloudflare-tunnel.md) | Create a Tunnel, get a token, configure public access |
-| [🤖 Telegram Bot](docs/features/telegram-bot.md) | Command list and setup guide |
-| [📜 Script support](docs/script_support.md) | Node filtering, content post processing, function reference |
-| [🔐 Multi factor authentication, MFA](docs/features/mfa.md) | TOTP setup, recovery codes, emergency reset flow |
+> 生产环境推荐使用 **Docker**（已包含前端编译和 cloudflared），无需手动构建前端。详见 [📦 Installation Guide](docs/installation.md)。
+
+### 开发调试
+- 启用 debug 日志：`SUBLINK_LOG_LEVEL=debug ./sublinkPro`
+- 热重启后端：使用 `air`（推荐）或 `nodemon` 监听前端
+- 前端热重载：`cd webs && yarn run dev` (Vite)
+- 后端热重载：`go run -tags=dev main.go` (需在 go.mod 中添加 replace 规则)
 
 ### 👨‍💻 Developers
 
