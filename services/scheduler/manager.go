@@ -99,6 +99,13 @@ func (sm *SchedulerManager) LoadFromDatabase() error {
 		}
 	}
 
+	// 启动恢复：清理僵尸 running 记录（进程重启后任务已死但 DB 仍标 running）
+	if n, rerr := models.RecoverStaleGitHubCrawlRuns(3 * time.Hour); rerr != nil {
+		utils.Warn("[GitHubCrawl] 启动恢复清理僵尸任务失败: %v", rerr)
+	} else if n > 0 {
+		utils.Info("[GitHubCrawl] 启动恢复已清理 %d 条僵尸 running 任务", n)
+	}
+
 	// 加载 GitHub 抓取定时任务
 	githubConfigs, ghErr := models.ListEnabledGitHubCrawlConfigs()
 	if ghErr != nil {

@@ -3932,7 +3932,17 @@
   },
   "githubCrawl": {
     "fields": {
+      "intervalHour": "间隔小时",
+      "intervalMinute": "间隔分钟",
+      "cronExpr": "Cron 表达式",
       "searchKeywordsHelp": "每行一个；推荐：clash free subscription / mihomo free nodes yaml。过泛关键字会自动补充默认词"
+    },
+    "helpers": {
+      "cronExpr": "5 字段格式，如 0 */6 * * *",
+      "interval": "按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）"
+    },
+    "errors": {
+      "intervalRequired": "请设置间隔小时或分钟（不能都为 0）"
     },
     "clearLogs": "清空",
     "confirmClearLogs": "确认清空抓取日志？",

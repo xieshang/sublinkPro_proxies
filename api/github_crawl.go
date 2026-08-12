@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
@@ -231,14 +232,20 @@ func GitHubCrawlRun(c *gin.Context) {
 		utils.FailWithMsg(c, "配置不存在")
 		return
 	}
-	if strings.EqualFold(strings.TrimSpace(cfg.LastStatus), "running") {
-		utils.FailWithMsg(c, "该配置正在抓取中，请先停止")
+	// 清理僵尸 running 后，再判断是否真有活跃任务（容器重启后常见僵尸记录）
+	active, aerr := models.HasActiveGitHubCrawlRun(id, 3*time.Hour)
+	if aerr != nil {
+		utils.FailWithMsg(c, "检查运行状态失败: "+aerr.Error())
 		return
 	}
-	var running models.GitHubCrawlRun
-	if err := database.DB.Where("config_id = ? AND status = ?", id, "running").Order("id DESC").First(&running).Error; err == nil {
-		utils.FailWithMsg(c, "该配置正在抓取中，请先停止")
-		return
+	if active || strings.EqualFold(strings.TrimSpace(cfg.LastStatus), "running") {
+		// last_status 可能残留 running，但 run 已无活跃 → 纠正后允许启动
+		if !active && strings.EqualFold(strings.TrimSpace(cfg.LastStatus), "running") {
+			_ = cfg.UpdateRunStatus("cancelled", "清理残留 running 状态", nil, nil)
+		} else if active {
+			utils.FailWithMsg(c, "该配置正在抓取中，请先停止")
+			return
+		}
 	}
 	appendGitHubCrawlOpLog(id, "info", "用户启动抓取任务")
 	go scheduler.ExecuteGitHubCrawlTask(id, models.TaskTriggerManual)
@@ -380,24 +387,28 @@ func GitHubCrawlStop(c *gin.Context) {
 		return
 	}
 
-	// 查找最新运行中的抓取记录
-	var run models.GitHubCrawlRun
-	if err := database.DB.Where("config_id = ? AND status = ?", id, "running").Order("id DESC").First(&run).Error; err != nil {
-		_ = cfg.UpdateRunStatus("cancelled", "用户停止", nil, nil)
+	// 取消全部 running 记录（含僵尸），避免只清一条仍被启动检查拦截
+	var runs []models.GitHubCrawlRun
+	_ = database.DB.Where("config_id = ? AND status = ?", id, "running").Find(&runs).Error
+	for _, run := range runs {
+		if run.TaskID != "" {
+			if err := services.GetTaskManager().CancelTask(run.TaskID); err != nil {
+				utils.Warn("取消任务失败 task=%s: %v", run.TaskID, err)
+			}
+		}
+	}
+	n, cerr := models.CancelAllRunningGitHubCrawlRuns(id, "用户停止")
+	if cerr != nil {
+		utils.FailWithMsg(c, "停止失败: "+cerr.Error())
+		return
+	}
+	_ = cfg.UpdateRunStatus("cancelled", "用户停止", nil, nil)
+	if n == 0 {
 		appendGitHubCrawlOpLog(id, "warn", "用户停止：当前无运行中任务")
 		utils.OkWithMsg(c, "无运行中任务")
 		return
 	}
-
-	if run.TaskID != "" {
-		if err := services.GetTaskManager().CancelTask(run.TaskID); err != nil {
-			utils.Warn("取消任务失败: %v", err)
-		}
-	}
-
-	_ = run.Finish("cancelled", "用户停止", run.FilesScanned, run.NodesFound, run.NodesValid)
-	_ = cfg.UpdateRunStatus("cancelled", "用户停止", nil, nil)
-	appendGitHubCrawlOpLog(id, "info", "用户停止抓取任务")
+	appendGitHubCrawlOpLog(id, "info", fmt.Sprintf("用户停止抓取任务（清理 %d 条运行记录）", n))
 	utils.OkWithMsg(c, "抓取任务已停止")
 }
 

@@ -23,8 +23,45 @@ func findExistingTotalNode(link string) (*models.Node, bool) {
 	return nil, false
 }
 
+// loadExistingTotalNodeIDs 批量确认 promoted_node_id 是否仍在总表。
+func loadExistingTotalNodeIDs(ids []int) map[int]bool {
+	out := make(map[int]bool, len(ids))
+	if len(ids) == 0 {
+		return out
+	}
+	uniq := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
+	}
+	if len(uniq) == 0 {
+		return out
+	}
+	nodes, err := models.GetNodesByIDs(uniq)
+	if err != nil {
+		utils.Warn("load existing total nodes for promote failed: %v", err)
+		return out
+	}
+	for _, n := range nodes {
+		if n.ID > 0 {
+			out[n.ID] = true
+		}
+	}
+	return out
+}
+
 // PromoteGitHubCrawlNodesToTotal 将独立节点加入总节点列表。
 // 返回：成功标记数、跳过数、因错误未能处理数。
+//
+// 若爬虫侧已标 promoted，但总表对应节点已被删除（孤儿标记），会自动重新加入，
+// 避免出现「总表搜不到 + 全部跳过」的死状态。
 func PromoteGitHubCrawlNodesToTotal(cfg *models.GitHubCrawlConfig, nodes []models.GitHubCrawlNode) (promoted, skipped, failed int) {
 	if cfg == nil || len(nodes) == 0 {
 		return 0, 0, 0
@@ -37,12 +74,17 @@ func PromoteGitHubCrawlNodesToTotal(cfg *models.GitHubCrawlConfig, nodes []model
 	idMap := make(map[int]int)
 	successIDs := make([]int, 0, len(nodes))
 
+	// 预加载已声明的 promoted_node_id，批量验证总表是否仍存在
+	checkIDs := make([]int, 0, len(nodes))
+	for _, gn := range nodes {
+		if gn.Promoted && gn.PromotedNodeID > 0 {
+			checkIDs = append(checkIDs, gn.PromotedNodeID)
+		}
+	}
+	existingTotalIDs := loadExistingTotalNodeIDs(checkIDs)
+
 	for _, gn := range nodes {
 		if cfg.ID > 0 && gn.ConfigID != cfg.ID {
-			continue
-		}
-		if gn.Promoted && gn.PromotedNodeID > 0 {
-			skipped++
 			continue
 		}
 		link := strings.TrimSpace(gn.Link)
@@ -51,12 +93,37 @@ func PromoteGitHubCrawlNodesToTotal(cfg *models.GitHubCrawlConfig, nodes []model
 			continue
 		}
 
-		// 已存在于总表：仅回写 promoted 标记
-		if existing, ok := findExistingTotalNode(link); ok {
-			idMap[gn.ID] = existing.ID
-			successIDs = append(successIDs, gn.ID)
-			promoted++
-			continue
+		// 已标记加入：校验总表节点是否仍在
+		if gn.Promoted && gn.PromotedNodeID > 0 {
+			if existingTotalIDs[gn.PromotedNodeID] {
+				skipped++
+				continue
+			}
+			// 总表 ID 已失效：尝试按链接找回
+			if existing, ok := findExistingTotalNode(link); ok {
+				idMap[gn.ID] = existing.ID
+				successIDs = append(successIDs, gn.ID)
+				promoted++
+				continue
+			}
+			// 孤儿标记：总表无此节点，重新加入
+			utils.Info("github crawl node %d promoted_node_id=%d missing in total list, re-promote", gn.ID, gn.PromotedNodeID)
+		} else if gn.Promoted {
+			// promoted 但无 promoted_node_id：按链接确认或重入
+			if existing, ok := findExistingTotalNode(link); ok {
+				idMap[gn.ID] = existing.ID
+				successIDs = append(successIDs, gn.ID)
+				promoted++
+				continue
+			}
+		} else {
+			// 未标记：总表已有同链接则只回写标记
+			if existing, ok := findExistingTotalNode(link); ok {
+				idMap[gn.ID] = existing.ID
+				successIDs = append(successIDs, gn.ID)
+				promoted++
+				continue
+			}
 		}
 
 		baseName := strings.TrimSpace(gn.Name)

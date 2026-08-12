@@ -187,6 +187,98 @@ func (r *GitHubCrawlRun) Finish(status, message string, filesScanned, nodesFound
 	}).Error
 }
 
+// HasActiveGitHubCrawlRun 是否存在真正进行中的抓取（排除僵尸 running 记录）。
+// 超过 maxAge 仍未结束的 running 视为僵尸，自动标记 cancelled。
+func HasActiveGitHubCrawlRun(configID int, maxAge time.Duration) (bool, error) {
+	if configID <= 0 {
+		return false, nil
+	}
+	if maxAge <= 0 {
+		maxAge = 3 * time.Hour
+	}
+	var runs []GitHubCrawlRun
+	if err := database.DB.Where("config_id = ? AND status = ?", configID, "running").
+		Order("id DESC").Find(&runs).Error; err != nil {
+		return false, err
+	}
+	if len(runs) == 0 {
+		return false, nil
+	}
+	cutoff := time.Now().Add(-maxAge)
+	active := false
+	for i := range runs {
+		r := &runs[i]
+		// 无 finished_at 且启动时间过久 → 僵尸
+		if r.StartedAt.Before(cutoff) {
+			_ = r.Finish("cancelled", "僵尸任务自动清理（进程重启或异常中断）", r.FilesScanned, r.NodesFound, r.NodesValid)
+			continue
+		}
+		active = true
+	}
+	return active, nil
+}
+
+// CancelAllRunningGitHubCrawlRuns 取消某配置下全部 running 记录（含僵尸）。
+// 返回清理条数。
+func CancelAllRunningGitHubCrawlRuns(configID int, reason string) (int, error) {
+	if configID <= 0 {
+		return 0, nil
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "用户停止"
+	}
+	var runs []GitHubCrawlRun
+	if err := database.DB.Where("config_id = ? AND status = ?", configID, "running").Find(&runs).Error; err != nil {
+		return 0, err
+	}
+	n := 0
+	for i := range runs {
+		r := &runs[i]
+		if err := r.Finish("cancelled", reason, r.FilesScanned, r.NodesFound, r.NodesValid); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
+// RecoverStaleGitHubCrawlRuns 启动时清理全局僵尸 running 记录，并修正配置 last_status。
+func RecoverStaleGitHubCrawlRuns(maxAge time.Duration) (int, error) {
+	if maxAge <= 0 {
+		maxAge = 3 * time.Hour
+	}
+	cutoff := time.Now().Add(-maxAge)
+	var runs []GitHubCrawlRun
+	if err := database.DB.Where("status = ? AND started_at < ?", "running", cutoff).Find(&runs).Error; err != nil {
+		return 0, err
+	}
+	n := 0
+	configIDs := map[int]struct{}{}
+	for i := range runs {
+		r := &runs[i]
+		if err := r.Finish("cancelled", "启动恢复：清理僵尸抓取任务", r.FilesScanned, r.NodesFound, r.NodesValid); err != nil {
+			return n, err
+		}
+		n++
+		if r.ConfigID > 0 {
+			configIDs[r.ConfigID] = struct{}{}
+		}
+	}
+	// 配置 last_status 仍为 running 且无活跃 run → 纠正
+	var cfgs []GitHubCrawlConfig
+	if err := database.DB.Where("last_status = ?", "running").Find(&cfgs).Error; err == nil {
+		for i := range cfgs {
+			cfg := &cfgs[i]
+			active, _ := HasActiveGitHubCrawlRun(cfg.ID, maxAge)
+			if !active {
+				_ = cfg.UpdateRunStatus("cancelled", "启动恢复：无活跃抓取", nil, nil)
+			}
+		}
+	}
+	_ = configIDs
+	return n, nil
+}
+
 // GitHubCrawlLog 抓取日志
 type GitHubCrawlLog struct {
 	ID        int       `gorm:"primaryKey" json:"id"`

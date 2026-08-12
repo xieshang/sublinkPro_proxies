@@ -67,6 +67,45 @@ import { getSpeedTestConfig } from 'api/nodes';
 // 与后端 githubCrawlLogMaxKeep 一致：前端日志最多缓存 500 行
 const GITHUB_CRAWL_LOG_MAX = 500;
 
+// 间隔小时/分钟 → cron（后台调度仍用 5 字段 cron）
+function intervalToCron(hour, minute) {
+  const h = Math.max(0, Math.min(23, Number(hour) || 0));
+  const m = Math.max(0, Math.min(59, Number(minute) || 0));
+  if (h === 0 && m === 0) return '0 */6 * * *';
+  if (h > 0 && m === 0) return `0 */${h} * * *`;
+  if (h === 0 && m > 0) return `*/${m} * * * *`;
+  return `${m} */${h} * * *`;
+}
+
+// cron → 间隔小时/分钟（兼容常见写法）
+function cronToInterval(cronExpr) {
+  const parts = String(cronExpr || '')
+    .trim()
+    .split(/\s+/);
+  if (parts.length < 5) return { hour: 6, minute: 0 };
+  const [minPart, hourPart] = parts;
+  if (minPart.startsWith('*/') && (hourPart === '*' || hourPart === '')) {
+    const m = parseInt(minPart.slice(2), 10);
+    return { hour: 0, minute: Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0 };
+  }
+  if (hourPart.startsWith('*/')) {
+    const h = parseInt(hourPart.slice(2), 10);
+    const m = /^\d+$/.test(minPart) ? parseInt(minPart, 10) : 0;
+    return {
+      hour: Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 6,
+      minute: Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0
+    };
+  }
+  if (/^\d+$/.test(minPart) && /^\d+$/.test(hourPart)) {
+    // 定点：按「每天 H:M」展示为小时/分钟，保存时仍会按间隔规则生成
+    return {
+      hour: Math.min(23, Math.max(0, parseInt(hourPart, 10) || 0)),
+      minute: Math.min(59, Math.max(0, parseInt(minPart, 10) || 0))
+    };
+  }
+  return { hour: 6, minute: 0 };
+}
+
 const emptyForm = {
   name: '',
   githubToken: '',
@@ -79,7 +118,9 @@ const emptyForm = {
   enabled: false,
   group: 'github',
   remark: '',
-  autoPromote: false
+  autoPromote: false,
+  hour: 6,
+  minute: 0
 };
 
 export default function GitHubCrawlPage() {
@@ -231,6 +272,8 @@ export default function GitHubCrawlPage() {
       setNodes([]);
       return;
     }
+    const cronExpr = selected.cronExpr || '0 */6 * * *';
+    const interval = cronToInterval(cronExpr);
     setForm({
       name: selected.name || '',
       githubToken: selected.githubToken || '',
@@ -239,11 +282,13 @@ export default function GitHubCrawlPage() {
       collectionInterval: selected.collectionInterval ?? 3600,
       maxCrawlLinks: selected.maxCrawlLinks ?? 40,
       useProxy: !!selected.useProxy,
-      cronExpr: selected.cronExpr || '0 */6 * * *',
+      cronExpr,
       enabled: !!selected.enabled,
       group: selected.group || 'github',
       remark: selected.remark || '',
-      autoPromote: !!selected.autoPromote
+      autoPromote: !!selected.autoPromote,
+      hour: interval.hour,
+      minute: interval.minute
     });
     setLogAfterId(0);
     setPage(0);
@@ -278,13 +323,23 @@ export default function GitHubCrawlPage() {
     setError('');
     setMessage('');
     try {
+      const hour = Math.max(0, Math.min(23, Number(form.hour) || 0));
+      const minute = Math.max(0, Math.min(59, Number(form.minute) || 0));
+      if (hour === 0 && minute === 0) {
+        setError(t('githubCrawl.errors.intervalRequired', '请设置间隔小时或分钟（不能都为 0）'));
+        return;
+      }
+      const cronExpr = intervalToCron(hour, minute);
+      const { hour: _h, minute: _m, ...rest } = form;
+      const payload = { ...rest, cronExpr, hour, minute };
       if (selectedId) {
-        await updateGitHubCrawlConfig(selectedId, form);
+        await updateGitHubCrawlConfig(selectedId, payload);
         setMessage(t('githubCrawl.messages.updated', '配置已更新'));
       } else {
-        await createGitHubCrawlConfig(form);
+        await createGitHubCrawlConfig(payload);
         setMessage(t('githubCrawl.messages.created', '配置已创建'));
       }
+      setForm((f) => ({ ...f, hour, minute, cronExpr }));
       await loadConfigs();
     } catch (e) {
       setError(e.message || 'save failed');
@@ -335,10 +390,10 @@ export default function GitHubCrawlPage() {
       }
       return;
     }
-    setRunning(true);
-    setMessage(t('githubCrawl.messages.running', '抓取任务已启动…'));
     try {
       await runGitHubCrawlNow(selectedId);
+      setRunning(true);
+      setMessage(t('githubCrawl.messages.running', '抓取任务已启动…'));
       setTimeout(() => {
         loadLogs(selectedId, 0);
         loadNodes(selectedId);
@@ -347,6 +402,7 @@ export default function GitHubCrawlPage() {
     } catch (e) {
       setError(e.message || 'run failed');
       setRunning(false);
+      setMessage('');
     }
   };
 
@@ -725,14 +781,35 @@ export default function GitHubCrawlPage() {
                       />
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        label={t('githubCrawl.fields.cronExpr', 'Cron 表达式')}
-                        value={form.cronExpr}
-                        onChange={(e) => setForm({ ...form, cronExpr: e.target.value })}
-                        helperText={t('githubCrawl.helpers.cronExpr', '5 字段，如 0 */6 * * *')}
-                      />
+                      <Stack direction="row" spacing={1.5}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label={t('githubCrawl.fields.intervalHour', '间隔小时')}
+                          value={form.hour}
+                          onChange={(e) => setForm({ ...form, hour: Number(e.target.value) || 0 })}
+                          inputProps={{ min: 0, max: 23 }}
+                        />
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label={t('githubCrawl.fields.intervalMinute', '间隔分钟')}
+                          value={form.minute}
+                          onChange={(e) => setForm({ ...form, minute: Number(e.target.value) || 0 })}
+                          inputProps={{ min: 0, max: 59 }}
+                        />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                        {t(
+                          'githubCrawl.helpers.interval',
+                          '按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）'
+                        )}
+                        {form.hour || form.minute
+                          ? ` · ${intervalToCron(form.hour, form.minute)}`
+                          : ''}
+                      </Typography>
                     </Grid>
                     <Grid item xs={12} sm={4}>
                       <FormControlLabel

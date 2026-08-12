@@ -3932,10 +3932,20 @@
   },
   "githubCrawl": {
     "fields": {
-      "searchKeywordsHelp": "One per line. Recommended: clash free subscription / mihomo free nodes yaml. Generic keywords auto-append defaults."
+      "intervalHour": "Interval hours",
+      "intervalMinute": "Interval minutes",
+      "cronExpr": "Cron expression",
+      "searchKeywordsHelp": "One per line; recommended: clash free nodes yaml / mihomo free subscription. Overly broad keywords will be supplemented with default terms"
+    },
+    "helpers": {
+      "cronExpr": "5-field format, e.g. 0 */6 * * *",
+      "interval": "Interval-based scheduling, automatically converted to Cron on save (e.g. 6 hours → 0 */6 * * *)"
+    },
+    "errors": {
+      "intervalRequired": "Please set interval hours or minutes (cannot both be 0)"
     },
     "clearLogs": "Clear",
-    "confirmClearLogs": "Clear crawl logs?",
+    "confirmClearLogs": "Confirm clear crawl logs?",
     "messages": {
       "logsCleared": "Logs cleared"
     },
