@@ -4,8 +4,14 @@ import (
 	"sublink/models"
 	"sublink/utils"
 )
+package settings
 
-// 重置默认用户
+import (
+	"sublink/models"
+	"sublink/utils"
+)
+
+// 重置默认用户 - 只更新admin用户的密码，不删除其他用户
 func ResetUser(username string, password string) {
 	// 如果账号或者密码为空
 	if username == "" || password == "" {
@@ -16,18 +22,17 @@ func ResetUser(username string, password string) {
 		utils.Error("密码不能小于6位数")
 		return
 	}
-	User := &models.User{}
-	// 获取所有用户
-	users, err := User.All()
-	if err != nil {
-		utils.Info("用户存在")
-	}
-	// 遍历所有用户
-	for _, user := range users {
-		// 删除所有用户
-		_ = user.Del()
+
+	// 只更新admin用户的密码
+	user := &models.User{Username: username}
+	if err := user.Find(); err == nil {
+		user.Password = password
+		_ = user.Set(user) // reuse Set which will hash it
+		utils.Info("已更新管理员密码")
+		return
 	}
 
-	User = &models.User{Username: username, Password: password, Role: "admin", Nickname: "管理员"}
+	// 如果没有admin用户，则创建
+	User := &models.User{Username: username, Password: password, Role: "admin", Nickname: "管理员"}
 	_ = User.Create()
 }
