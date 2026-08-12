@@ -34,8 +34,6 @@
   </p>
 </div>
 
-[English](README.md) | 简体中文
-
 ---
 
 ## 📖 项目简介
@@ -120,6 +118,72 @@ docker-compose up -d
 
 > [!TIP]
 > Docker 镜像已内置 `cloudflared`。登录后可在 `用户中心 -> Cloudflare Tunnel` 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。
+
+### 从源码构建 Docker 镜像并部署
+
+适合二次开发、本地调试，或无法拉取官方镜像时使用。仓库根目录已提供多阶段 `Dockerfile`（前端 Yarn 构建 → Go 编译 → Alpine 运行）。
+
+**1. 克隆源码并构建镜像**
+
+```bash
+git clone https://github.com/ZeroDeng01/sublinkPro.git
+cd sublinkPro
+
+# 构建本地镜像（首次较慢，需拉取 node / golang 基础镜像）
+docker build -t sublinkpro:local .
+```
+
+**2. 使用 Compose 运行本地镜像**
+
+创建 `docker-compose.yml`：
+
+```yaml
+services:
+  sublinkpro:
+    image: sublinkpro:local   # 使用上一步构建的本地镜像
+    build: .                 # 可选：up --build 时自动重新构建
+    container_name: sublinkpro
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./db:/app/db"
+      - "./template:/app/template"
+      - "./logs:/app/logs"
+    restart: unless-stopped
+```
+
+启动：
+
+```bash
+# 仅启动（镜像已构建）
+docker compose up -d
+
+# 或改代码后重新构建并启动
+docker compose up -d --build --force-recreate
+```
+
+**3. 或使用 docker run**
+
+```bash
+docker run --name sublinkpro -p 8000:8000 \
+  -v "$PWD/db:/app/db" \
+  -v "$PWD/template:/app/template" \
+  -v "$PWD/logs:/app/logs" \
+  -d sublinkpro:local
+```
+
+**4. 更新本地源码部署**
+
+```bash
+git pull
+docker compose up -d --build --force-recreate
+# 数据目录 ./db ./template ./logs 会保留
+```
+
+> [!NOTE]
+> - 构建需要能访问 Docker Hub / npm / Go 模块代理；国内可配置 Docker 镜像加速与 `GOPROXY`（Dockerfile 已默认 `goproxy.cn`）。
+> - 官方镜像：`zerodeng/sublink-pro`；本地源码镜像可自定义标签如 `sublinkpro:local`。
+> - 更完整的构建说明见 [🛠️ 构建与部署](docs/build-and-deployment.zh-CN.md)。
 
 ### 从 SQLite 迁移到 MySQL / PostgreSQL
 

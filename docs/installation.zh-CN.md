@@ -1,5 +1,3 @@
-[English](installation.md) | 简体中文
-
 # 安装部署指南
 
 本文档介绍 SublinkPro 的完整安装、更新和卸载方法。
@@ -96,6 +94,63 @@ docker run --name sublinkpro -p 8000:8000 \
 ```
 
 </details>
+
+---
+
+## 🛠️ 从源码构建 Docker 镜像并部署
+
+适合二次开发、内网部署，或无法直接拉取官方镜像的场景。仓库根目录 `Dockerfile` 为多阶段构建：前端 Yarn → Go 编译 → Alpine 运行（含 cloudflared）。
+
+### 构建镜像
+
+```bash
+git clone https://github.com/ZeroDeng01/sublinkPro.git
+cd sublinkPro
+docker build -t sublinkpro:local .
+```
+
+### Compose 部署本地镜像
+
+```yaml
+services:
+  sublinkpro:
+    image: sublinkpro:local
+    build: .   # 可选：支持 docker compose up --build
+    container_name: sublinkpro
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./db:/app/db"
+      - "./template:/app/template"
+      - "./logs:/app/logs"
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+# 或改代码后：
+docker compose up -d --build --force-recreate
+```
+
+### docker run
+
+```bash
+docker run --name sublinkpro -p 8000:8000 \
+  -v $PWD/db:/app/db \
+  -v $PWD/template:/app/template \
+  -v $PWD/logs:/app/logs \
+  -d sublinkpro:local
+```
+
+### 更新
+
+```bash
+git pull
+docker compose up -d --build --force-recreate
+```
+
+> [!NOTE]
+> 构建需能访问基础镜像与 npm/Go 依赖；Dockerfile 已配置 `GOPROXY=https://goproxy.cn,...`。更细说明见 [构建与部署](build-and-deployment.zh-CN.md)。
 
 ---
 
