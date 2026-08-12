@@ -3949,6 +3949,23 @@
     "messages": {
       "logsCleared": "日志已清空"
     },
-    "title": "GitHub爬虫"
+    "title": "GitHub爬虫",
+    "blacklist": {
+      "title": "黑名单",
+      "add": "添加",
+      "edit": "编辑黑名单",
+      "target": "目标",
+      "scopeLink": "链接",
+      "scopeRepo": "仓库",
+      "reason": "原因",
+      "delete": "删除",
+      "confirmDelete": "确认删除该黑名单项？",
+      "targetRequired": "请填写目标",
+      "created": "黑名单已添加",
+      "updated": "黑名单已更新",
+      "deleted": "黑名单已删除",
+      "noRules": "暂无黑名单项"
+    }
   }
 }
+

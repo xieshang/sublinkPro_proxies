@@ -778,15 +778,22 @@ export default function GitHubCrawlPage() {
                         {saving ? t('common.saving', '保存中…') : t('common.save', '保存')}
                       </Button>
                       <Button
+                        color="warning"
+                        variant="outlined"
+                        startIcon={<IconPlus size={16} />}
+                        disabled={!selectedId}
+                        onClick={() => openBlacklistDialog()}
+                      >
+                        {t('githubCrawl.blacklist.title', '黑名单')}
+                      </Button>
+                      <Button
                         color={running ? 'error' : 'primary'}
                         variant="contained"
                         disabled={!selectedId}
                         startIcon={running ? <IconPlayerStop size={16} /> : <IconPlayerPlay size={16} />}
                         onClick={handleRun}
                       >
-                        {running
-                          ? t('githubCrawl.stop', '停止')
-                          : t('githubCrawl.start', '开始')}
+                        {running ? t('githubCrawl.stop', '停止') : t('githubCrawl.start', '开始')}
                       </Button>
                     </Stack>
                   </Stack>
@@ -1216,6 +1223,79 @@ export default function GitHubCrawlPage() {
           </Card>
         </Box>
 
+        {/* 黑名单列表 */}
+        <Box sx={{ width: '100%' }}>
+          <Card variant="outlined" sx={{ width: '100%' }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="subtitle1">
+                  {t('githubCrawl.blacklist.title', '黑名单')} ({visibleBlacklist.length})
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<IconRefresh size={14} />}
+                    onClick={() => selectedId && loadBlacklist(selectedId)}
+                  >
+                    {t('common.refresh', '刷新')}
+                  </Button>
+                  <Button
+                    size="small"
+                    color="primary"
+                    variant="contained"
+                    startIcon={<IconPlus size={14} />}
+                    onClick={() => openBlacklistDialog()}
+                  >
+                    {t('githubCrawl.blacklist.add', '添加')}
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Box sx={{ maxHeight: 280, overflow: 'auto', width: '100%' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t('githubCrawl.blacklist.target', '目标')}</TableCell>
+                      <TableCell>{t('githubCrawl.blacklist.scopeLink', '范围')}</TableCell>
+                      <TableCell>{t('githubCrawl.blacklist.reason', '原因')}</TableCell>
+                      <TableCell align="right">{t('common.actions', '操作')}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {visibleBlacklist.map((item) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell>{item.target}</TableCell>
+                        <TableCell>
+                          <Chip size="small" label={t(`githubCrawl.blacklist.scope${item.scope === 'repo' ? 'Repo' : 'Link'}`, item.scope)} />
+                        </TableCell>
+                        <TableCell>{item.reason || '-'}</TableCell>
+                        <TableCell align="right">
+                          <IconButton size="small" color="warning" onClick={() => openBlacklistDialog(item)}>
+                            <IconEdit size={16} />
+                          </IconButton>
+                          <IconButton size="small" color="error" onClick={() => handleDeleteBlacklist(item.id)}>
+                            <IconTrash size={16} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {visibleBlacklist.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <Typography variant="body2" color="text.secondary" align="center">
+                            {t('githubCrawl.blacklist.noRules', '暂无黑名单项')}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+               </Box>
+             </CardContent>
+           </Card>
+         </Box>
+
         {/* 抓取日志：整行占满，倒序 */}
         <Box sx={{ width: '100%' }}>
           <Card variant="outlined" sx={{ width: '100%' }}>
@@ -1279,9 +1359,8 @@ export default function GitHubCrawlPage() {
             </CardContent>
           </Card>
         </Box>
-
       </Stack>
-    
+
       <Dialog open={testDialogOpen} onClose={() => !testing && setTestDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>{t('githubCrawl.fullTestTitle', '全测 - 选择节点检测策略')}</DialogTitle>
         <DialogContent>
@@ -1338,9 +1417,51 @@ export default function GitHubCrawlPage() {
         </DialogActions>
       </Dialog>
 
+      <Dialog open={blacklistDialogOpen} onClose={() => setBlacklistDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {editingBlacklistId
+            ? t('githubCrawl.blacklist.edit', '编辑黑名单')
+            : t('githubCrawl.blacklist.add', '添加黑名单')}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>{t('githubCrawl.blacklist.scopeLink', '范围')}</InputLabel>
+              <Select
+                value={blacklistForm.scope}
+                onChange={(e) => setBlacklistForm({ ...blacklistForm, scope: e.target.value })}
+                label={t('githubCrawl.blacklist.scopeLink', '范围')}
+              >
+                <MenuItem value="link">{t('githubCrawl.blacklist.scopeLink', '链接')}</MenuItem>
+                <MenuItem value="repo">{t('githubCrawl.blacklist.scopeRepo', '仓库')}</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              size="small"
+              label={t('githubCrawl.blacklist.target', '目标')}
+              placeholder={blacklistForm.scope === 'repo' ? 'owner/repo' : 'https://example.com/path/to/file.yaml'}
+              value={blacklistForm.target}
+              onChange={(e) => setBlacklistForm({ ...blacklistForm, target: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label={t('githubCrawl.blacklist.reason', '原因')}
+              placeholder="抓取失败 / 404 / 多次0有效"
+              value={blacklistForm.reason}
+              onChange={(e) => setBlacklistForm({ ...blacklistForm, reason: e.target.value })}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBlacklistDialogOpen(false)}>{t('common.cancel', '取消')}</Button>
+          <Button variant="contained" onClick={handleSaveBlacklist} disabled={blacklistSaving}>
+            {blacklistSaving ? t('common.saving', '保存中…') : t('common.save', '保存')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </MainCard>
   );
 }
-
-
 
