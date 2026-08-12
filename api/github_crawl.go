@@ -660,3 +660,90 @@ func GitHubCrawlTest(c *gin.Context) {
 		"taskId":  taskID,
 	})
 }
+
+// GitHubCrawlBlacklistHandlers 黑名单管理
+func GitHubCrawlBlacklistList(c *gin.Context) {
+	id, ok := parseGitHubCrawlID(c)
+	if !ok {
+		return
+	}
+	list, err := models.ListGitHubCrawlBlacklists(id)
+	if err != nil {
+		utils.FailWithMsg(c, "获取黑名单失败: "+err.Error())
+		return
+	}
+	utils.OkDetailed(c, "获取成功", list)
+}
+
+func GitHubCrawlBlacklistAdd(c *gin.Context) {
+	id, ok := parseGitHubCrawlID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		Scope  string `json:"scope"`
+		Target string `json:"target"`
+		Repo   string `json:"repo"`
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithMsg(c, "参数错误: "+err.Error())
+		return
+	}
+	if req.Scope == "" || req.Target == "" {
+		utils.FailWithMsg(c, "scope 和 target 必填")
+		return
+	}
+	if err := models.AddGitHubCrawlBlacklist(id, req.Scope, req.Target, req.Repo, req.Reason); err != nil {
+		utils.FailWithMsg(c, "添加失败: "+err.Error())
+		return
+	}
+	appendGitHubCrawlOpLog(id, "info", fmt.Sprintf("添加黑名单: %s/%s", req.Scope, req.Target))
+	utils.OkWithMsg(c, "已加入黑名单")
+}
+
+func GitHubCrawlBlacklistUpdate(c *gin.Context) {
+	id, ok := parseGitHubCrawlID(c)
+	if !ok {
+		return
+	}
+	bid, _ := strconv.Atoi(c.Param("bid"))
+	if bid <= 0 {
+		utils.FailWithMsg(c, "无效黑名单 ID")
+		return
+	}
+	var req struct {
+		Scope  string `json:"scope"`
+		Target string `json:"target"`
+		Repo   string `json:"repo"`
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithMsg(c, "参数错误: "+err.Error())
+		return
+	}
+	if err := models.UpdateGitHubCrawlBlacklist(id, bid, req.Scope, req.Target, req.Repo, req.Reason); err != nil {
+		utils.FailWithMsg(c, "更新失败: "+err.Error())
+		return
+	}
+	appendGitHubCrawlOpLog(id, "info", fmt.Sprintf("更新黑名单 ID=%d", bid))
+	utils.OkWithMsg(c, "已更新")
+}
+
+func GitHubCrawlBlacklistDelete(c *gin.Context) {
+	id, ok := parseGitHubCrawlID(c)
+	if !ok {
+		return
+	}
+	bid, _ := strconv.Atoi(c.Param("bid"))
+	if bid <= 0 {
+		utils.FailWithMsg(c, "无效黑名单 ID")
+		return
+	}
+	if err := models.DeleteGitHubCrawlBlacklist(id, bid); err != nil {
+		utils.FailWithMsg(c, "删除失败: "+err.Error())
+		return
+	}
+	appendGitHubCrawlOpLog(id, "info", fmt.Sprintf("删除黑名单 ID=%d", bid))
+	utils.OkWithMsg(c, "已删除")
+}

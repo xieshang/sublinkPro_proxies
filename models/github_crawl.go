@@ -87,6 +87,9 @@ func (c *GitHubCrawlConfig) Delete() error {
 		if err := tx.Where("config_id = ?", c.ID).Delete(&GitHubCrawlRun{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("config_id = ?", c.ID).Delete(&GitHubCrawlBlacklist{}).Error; err != nil {
+			return err
+		}
 		return tx.Delete(c).Error
 	})
 }
@@ -603,5 +606,186 @@ func UpdateGitHubCrawlNodeTestResult(id int, delayTime int, delayStatus string, 
 		"speed":        speed,
 		"speed_status": speedStatus,
 		"is_valid":     isValid,
+	}).Error
+}
+
+// GitHubCrawlBlacklist 爬虫黑名单：链接失败 / 仓库全 404 / 多次 0 有效节点
+type GitHubCrawlBlacklist struct {
+	ID        int       `gorm:"primaryKey" json:"id"`
+	ConfigID  int       `gorm:"index;not null" json:"configId"`
+	Scope     string    `gorm:"size:16;index;not null" json:"scope"` // link | repo
+	Target    string    `gorm:"type:text;not null" json:"target"`    // 链接 URL 或 owner/repo
+	Repo      string    `gorm:"size:255;index" json:"repo"`          // 关联仓库，便于列表展示
+	Reason    string    `gorm:"type:text" json:"reason"`
+	HitCount  int       `gorm:"default:1" json:"hitCount"` // 命中/失败累计（0 有效节点次数等）
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+}
+
+func (GitHubCrawlBlacklist) TableName() string { return "github_crawl_blacklists" }
+
+const (
+	GitHubCrawlBlacklistScopeLink = "link"
+	GitHubCrawlBlacklistScopeRepo = "repo"
+	// 同一仓库累计多少次「拉取后 0 有效节点」则拉黑仓库
+	GitHubCrawlZeroValidRepoThreshold = 3
+)
+
+func (b *GitHubCrawlBlacklist) normalize() {
+	b.Scope = strings.TrimSpace(strings.ToLower(b.Scope))
+	if b.Scope != GitHubCrawlBlacklistScopeRepo {
+		b.Scope = GitHubCrawlBlacklistScopeLink
+	}
+	b.Target = strings.TrimSpace(b.Target)
+	b.Repo = strings.TrimSpace(b.Repo)
+	b.Reason = strings.TrimSpace(b.Reason)
+	if b.HitCount <= 0 {
+		b.HitCount = 1
+	}
+}
+
+// ListGitHubCrawlBlacklists 列出某配置黑名单
+func ListGitHubCrawlBlacklists(configID int) ([]GitHubCrawlBlacklist, error) {
+	var list []GitHubCrawlBlacklist
+	err := database.DB.Where("config_id = ?", configID).Order("id DESC").Find(&list).Error
+	return list, err
+}
+
+// GetGitHubCrawlBlacklistByID 按 ID 读取（限定 config）
+func GetGitHubCrawlBlacklistByID(configID, id int) (*GitHubCrawlBlacklist, error) {
+	var b GitHubCrawlBlacklist
+	if err := database.DB.Where("config_id = ? AND id = ?", configID, id).First(&b).Error; err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// AddGitHubCrawlBlacklist 新增；同 config+scope+target 已存在则更新 reason/hit_count
+func AddGitHubCrawlBlacklist(configID int, scope, target, repo, reason string) error {
+	b := &GitHubCrawlBlacklist{
+		ConfigID: configID,
+		Scope:    scope,
+		Target:   target,
+		Repo:     repo,
+		Reason:   reason,
+		HitCount: 1,
+	}
+	b.normalize()
+	if b.Target == "" || configID <= 0 {
+		return gorm.ErrInvalidData
+	}
+	var existing GitHubCrawlBlacklist
+	err := database.DB.Where("config_id = ? AND scope = ? AND target = ?", configID, b.Scope, b.Target).First(&existing).Error
+	if err == nil {
+		updates := map[string]any{
+			"hit_count": existing.HitCount + 1,
+			"reason":    b.Reason,
+		}
+		if b.Repo != "" {
+			updates["repo"] = b.Repo
+		}
+		return database.DB.Model(&existing).Updates(updates).Error
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+	return database.DB.Create(b).Error
+}
+
+// UpdateGitHubCrawlBlacklist 更新
+func UpdateGitHubCrawlBlacklist(configID, id int, scope, target, repo, reason string) error {
+	b, err := GetGitHubCrawlBlacklistByID(configID, id)
+	if err != nil {
+		return err
+	}
+	b.Scope = scope
+	b.Target = target
+	b.Repo = repo
+	b.Reason = reason
+	b.normalize()
+	if b.Target == "" {
+		return gorm.ErrInvalidData
+	}
+	return database.DB.Model(b).Select("Scope", "Target", "Repo", "Reason").Updates(b).Error
+}
+
+// DeleteGitHubCrawlBlacklist 删除单条
+func DeleteGitHubCrawlBlacklist(configID, id int) error {
+	return database.DB.Where("config_id = ? AND id = ?", configID, id).Delete(&GitHubCrawlBlacklist{}).Error
+}
+
+// ClearGitHubCrawlBlacklists 清空某配置黑名单
+func ClearGitHubCrawlBlacklists(configID int) error {
+	return database.DB.Where("config_id = ?", configID).Delete(&GitHubCrawlBlacklist{}).Error
+}
+
+// LoadGitHubCrawlBlacklistSets 加载内存集合，供抓取前过滤
+func LoadGitHubCrawlBlacklistSets(configID int) (links map[string]struct{}, repos map[string]struct{}, err error) {
+	links = make(map[string]struct{})
+	repos = make(map[string]struct{})
+	list, err := ListGitHubCrawlBlacklists(configID)
+	if err != nil {
+		return links, repos, err
+	}
+	for _, b := range list {
+		key := strings.ToLower(strings.TrimSpace(b.Target))
+		if key == "" {
+			continue
+		}
+		if b.Scope == GitHubCrawlBlacklistScopeRepo {
+			repos[key] = struct{}{}
+		} else {
+			links[key] = struct{}{}
+		}
+	}
+	return links, repos, nil
+}
+
+// RecordGitHubCrawlZeroValidRepo 记录仓库 0 有效节点次数，达到阈值则拉黑仓库。
+// 返回是否已（或刚）拉黑仓库。
+func RecordGitHubCrawlZeroValidRepo(configID int, repoFullName, reason string) (blacklisted bool, err error) {
+	repoFullName = strings.TrimSpace(repoFullName)
+	if configID <= 0 || repoFullName == "" || strings.EqualFold(repoFullName, "orphan") {
+		return false, nil
+	}
+	// 已是仓库黑名单
+	var existing GitHubCrawlBlacklist
+	err = database.DB.Where("config_id = ? AND scope = ? AND target = ?",
+		configID, GitHubCrawlBlacklistScopeRepo, repoFullName).First(&existing).Error
+	if err == nil {
+		_ = database.DB.Model(&existing).Updates(map[string]any{
+			"hit_count": existing.HitCount + 1,
+			"reason":    reason,
+		}).Error
+		return true, nil
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return false, err
+	}
+	// 用 link 作用域 + 特殊 target 记次：__zero_valid__:owner/repo
+	counterKey := "__zero_valid__:" + repoFullName
+	var counter GitHubCrawlBlacklist
+	cerr := database.DB.Where("config_id = ? AND scope = ? AND target = ?",
+		configID, GitHubCrawlBlacklistScopeLink, counterKey).First(&counter).Error
+	if cerr == nil {
+		newHit := counter.HitCount + 1
+		_ = database.DB.Model(&counter).Update("hit_count", newHit).Error
+		if newHit >= GitHubCrawlZeroValidRepoThreshold {
+			_ = AddGitHubCrawlBlacklist(configID, GitHubCrawlBlacklistScopeRepo, repoFullName, repoFullName, reason)
+			_ = database.DB.Delete(&counter).Error
+			return true, nil
+		}
+		return false, nil
+	}
+	if cerr != nil && cerr != gorm.ErrRecordNotFound {
+		return false, cerr
+	}
+	return false, database.DB.Create(&GitHubCrawlBlacklist{
+		ConfigID: configID,
+		Scope:    GitHubCrawlBlacklistScopeLink,
+		Target:   counterKey,
+		Repo:     repoFullName,
+		Reason:   "zero_valid_counter",
+		HitCount: 1,
 	}).Error
 }

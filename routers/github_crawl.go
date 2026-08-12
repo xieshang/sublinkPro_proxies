@@ -32,5 +32,10 @@ func GitHubCrawl(r *gin.Engine) {
 		group.POST("/:id/test-delay", middlewares.DemoModeRestrict, api.GitHubCrawlTestDelay)
 		group.POST("/:id/test-speed", middlewares.DemoModeRestrict, api.GitHubCrawlTestSpeed)
 		group.POST("/:id/test", middlewares.DemoModeRestrict, api.GitHubCrawlTest)
+		// 黑名单
+		group.GET("/:id/blacklist", api.GitHubCrawlBlacklistList)
+		group.POST("/:id/blacklist", middlewares.DemoModeRestrict, api.GitHubCrawlBlacklistAdd)
+		group.PUT("/:id/blacklist/:bid", middlewares.DemoModeRestrict, api.GitHubCrawlBlacklistUpdate)
+		group.DELETE("/:id/blacklist/:bid", middlewares.DemoModeRestrict, api.GitHubCrawlBlacklistDelete)
 	}
 }

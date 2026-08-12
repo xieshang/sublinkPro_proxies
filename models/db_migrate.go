@@ -207,6 +207,7 @@ func RunMigrations() error {
 		{name: "GitHubCrawlRun", model: &GitHubCrawlRun{}},
 		{name: "GitHubCrawlLog", model: &GitHubCrawlLog{}},
 		{name: "GitHubCrawlNode", model: &GitHubCrawlNode{}},
+		{name: "GitHubCrawlBlacklist", model: &GitHubCrawlBlacklist{}},
 	}
 
 	for _, table := range baseTables {

@@ -80,3 +80,19 @@ export function testGitHubCrawlNodes(id, nodeIds = [], profileId) {
   });
 }
 
+export function listGitHubCrawlBlacklist(id) {
+  return request({ url: `/v1/github-crawl/${id}/blacklist`, method: 'get' });
+}
+
+export function addGitHubCrawlBlacklist(id, data) {
+  return request({ url: `/v1/github-crawl/${id}/blacklist`, method: 'post', data });
+}
+
+export function updateGitHubCrawlBlacklist(id, bid, data) {
+  return request({ url: `/v1/github-crawl/${id}/blacklist/${bid}`, method: 'put', data });
+}
+
+export function deleteGitHubCrawlBlacklist(id, bid) {
+  return request({ url: `/v1/github-crawl/${id}/blacklist/${bid}`, method: 'delete' });
+}
+
