@@ -353,10 +353,26 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 	filesScanned := 0
 	reposScanned := 0
 
+	// 加载黑名单，抓取前过滤
+	blLinks, blRepos, blErr := models.LoadGitHubCrawlBlacklistSets(cfg.ID)
+	if blErr != nil {
+		logFn("warn", "加载黑名单失败: "+blErr.Error())
+		blLinks, blRepos = map[string]struct{}{}, map[string]struct{}{}
+	} else if len(blLinks)+len(blRepos) > 0 {
+		logFn("info", fmt.Sprintf("已加载黑名单：链接 %d，仓库 %d", len(blLinks), len(blRepos)))
+	}
+
 	// processCandidates 对候选文件测速入库，返回是否已达目标
 	processCandidates := func(repoName string, cands []githubFileCandidate) bool {
 		if len(cands) == 0 {
 			return validCount >= targetValid
+		}
+		repoKey := strings.ToLower(strings.TrimSpace(repoName))
+		if repoKey != "" && repoKey != "orphan" {
+			if _, blocked := blRepos[repoKey]; blocked {
+				logFn("info", fmt.Sprintf("跳过黑名单仓库: %s", repoName))
+				return validCount >= targetValid
+			}
 		}
 		sort.SliceStable(cands, func(i, j int) bool {
 			if cands[i].Score != cands[j].Score {
@@ -369,6 +385,10 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 		}
 		logFn("info", fmt.Sprintf("仓库 %s 选取 %d 个文件进行提取（同库上限 %d）",
 			repoName, len(cands), githubMaxFilesPerRepo))
+
+		attempted := 0
+		failed404 := 0
+		zeroValidPulls := 0
 
 		for _, cand := range cands {
 			select {
@@ -390,9 +410,14 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			if _, ok := seenFileURL[urlKey]; ok {
 				continue
 			}
+			if _, blocked := blLinks[urlKey]; blocked {
+				logFn("info", fmt.Sprintf("跳过黑名单链接: %s", truncateStr(cand.URL, 90)))
+				continue
+			}
 			seenFileURL[urlKey] = struct{}{}
 
 			filesScanned++
+			attempted++
 			logFn("info", fmt.Sprintf("[有效 %d/%d] 拉取 %s score=%d source=%s path=%s",
 				validCount, targetValid, truncateStr(cand.URL, 90), cand.Score, cand.Source, cand.Path))
 			reporter.ReportProgress(validCount, cand.Path, nil)
@@ -405,6 +430,18 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			}
 			if ferr != nil || len(content) == 0 {
 				logFn("warn", fmt.Sprintf("拉取失败 %s: %v", truncateStr(cand.URL, 90), ferr))
+				errText := ""
+				if ferr != nil {
+					errText = ferr.Error()
+				}
+				is404 := strings.Contains(errText, "HTTP 404") || strings.Contains(errText, "404")
+				if is404 {
+					failed404++
+				}
+				// 拉取失败：拉黑该链接
+				_ = models.AddGitHubCrawlBlacklist(cfg.ID, models.GitHubCrawlBlacklistScopeLink, cand.URL, firstNonEmpty(cand.Repo, repoName),
+					fmt.Sprintf("拉取失败: %s", truncateStr(errText, 80)))
+				blLinks[urlKey] = struct{}{}
 				continue
 			}
 			fetchedSubs++
@@ -434,6 +471,7 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			}
 			if len(batch) == 0 {
 				logFn("warn", fmt.Sprintf("未解析到节点: %s", truncateStr(cand.URL, 90)))
+				zeroValidPulls++
 				continue
 			}
 
@@ -455,6 +493,9 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			a, te, pa := testAndSaveGitHubProxies(ctx, batchNodes, logFn, maxTest)
 			result.NodesAdded += a
 			validCount += pa
+			if pa == 0 {
+				zeroValidPulls++
+			}
 			logFn("info", fmt.Sprintf("订阅测速：测试 %d 通过 %d 新入库 %d；累计有效 %d/%d",
 				te, pa, a, validCount, targetValid))
 			reporter.ReportProgress(validCount, cand.Path, map[string]any{
@@ -467,6 +508,24 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 			if result.NodesAdded >= githubMaxNodesTotal {
 				logFn("info", "已达总入库安全上限，提前结束")
 				return true
+			}
+		}
+
+		// 本仓库全部候选拉取均为 404 → 拉黑整库
+		if attempted > 0 && failed404 >= attempted && repoKey != "" && repoKey != "orphan" {
+			_ = models.AddGitHubCrawlBlacklist(cfg.ID, models.GitHubCrawlBlacklistScopeRepo, repoName, repoName,
+				fmt.Sprintf("本仓库全部 %d 个链接均为 404", attempted))
+			blRepos[repoKey] = struct{}{}
+			logFn("warn", fmt.Sprintf("仓库 %s 全部链接 404，已拉黑仓库", repoName))
+		}
+		// 多次拉取后 0 有效节点 → 累计达到阈值后拉黑仓库
+		if zeroValidPulls > 0 && repoKey != "" && repoKey != "orphan" {
+			if blocked, rerr := models.RecordGitHubCrawlZeroValidRepo(cfg.ID, repoName,
+				fmt.Sprintf("多次拉取测速后 0 有效节点（本轮 %d 次）", zeroValidPulls)); rerr != nil {
+				logFn("warn", "记录 0 有效节点失败: "+rerr.Error())
+			} else if blocked {
+				blRepos[repoKey] = struct{}{}
+				logFn("warn", fmt.Sprintf("仓库 %s 多次 0 有效节点，已拉黑仓库", repoName))
 			}
 		}
 		return validCount >= targetValid
@@ -569,6 +628,12 @@ func CrawlGitHubNodes(ctx context.Context, cfg *models.GitHubCrawlConfig, runID 
 		}
 
 		reposScanned++
+		if rk := strings.ToLower(strings.TrimSpace(repo.FullName)); rk != "" {
+			if _, blocked := blRepos[rk]; blocked {
+				logFn("info", fmt.Sprintf("跳过黑名单仓库: %s", repo.FullName))
+				continue
+			}
+		}
 		logFn("info", fmt.Sprintf("[有效 %d/%d · 仓库 %d/%d] 扫描 %s（更新时间：%s）",
 			validCount, targetValid, i+1, len(repos), repo.FullName,
 			firstNonEmpty(repo.PushedAt, repo.UpdatedAt)))

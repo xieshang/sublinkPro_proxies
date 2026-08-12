@@ -80,7 +80,7 @@
 **1. 克隆源码并构建镜像**
 
 ```bash
-git clone https://github.com/ZeroDeng01/sublinkPro.git
+git clone https://gitea.xieshang.ren/tools/sublinkPro.git
 cd sublinkPro
 
 # 构建本地镜像（首次较慢，需拉取 node / golang 基础镜像）
