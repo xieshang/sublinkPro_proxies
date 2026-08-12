@@ -60,8 +60,13 @@ import {
   testGitHubCrawlNodeDelay,
   testGitHubCrawlNodeSpeed,
   testGitHubCrawlNodes,
-  stopGitHubCrawl
+  stopGitHubCrawl,
+  listGitHubCrawlBlacklist,
+  addGitHubCrawlBlacklist,
+  updateGitHubCrawlBlacklist,
+  deleteGitHubCrawlBlacklist
 } from 'api/githubCrawl';
+import { IconEdit, IconPlus } from '@tabler/icons-react';
 import { getSpeedTestConfig } from 'api/nodes';
 
 // 与后端 githubCrawlLogMaxKeep 一致：前端日志最多缓存 500 行
@@ -153,7 +158,11 @@ export default function GitHubCrawlPage() {
   const [profiles, setProfiles] = useState([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [profilesLoading, setProfilesLoading] = useState(false);
-
+  const [blacklist, setBlacklist] = useState([]);
+  const [blacklistForm, setBlacklistForm] = useState({ scope: 'link', target: '', repo: '', reason: '' });
+  const [blacklistDialogOpen, setBlacklistDialogOpen] = useState(false);
+  const [editingBlacklistId, setEditingBlacklistId] = useState(null);
+  const [blacklistSaving, setBlacklistSaving] = useState(false);
 
   const selected = useMemo(() => configs.find((c) => c.id === selectedId) || null, [configs, selectedId]);
   // 日志倒序展示（新日志在上）
@@ -261,6 +270,20 @@ export default function GitHubCrawlPage() {
     }
   }, []);
 
+  const loadBlacklist = useCallback(async (configId) => {
+    if (!configId) {
+      setBlacklist([]);
+      return;
+    }
+    try {
+      const res = await listGitHubCrawlBlacklist(configId);
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setBlacklist(list);
+    } catch (e) {
+      setError(e.message || 'load blacklist failed');
+    }
+  }, []);
+
   useEffect(() => {
     loadConfigs();
   }, [loadConfigs]);
@@ -270,6 +293,7 @@ export default function GitHubCrawlPage() {
       setForm(emptyForm);
       setLogs([]);
       setNodes([]);
+      setBlacklist([]);
       return;
     }
     const cronExpr = selected.cronExpr || '0 */6 * * *';
@@ -299,8 +323,9 @@ export default function GitHubCrawlPage() {
     setFilterProtocol('all');
     loadLogs(selected.id, 0);
     loadNodes(selected.id);
+    loadBlacklist(selected.id);
     setRunning(String(selected.lastStatus || '').toLowerCase() === 'running');
-  }, [selected, loadLogs, loadNodes]);
+  }, [selected, loadLogs, loadNodes, loadBlacklist]);
 
   // 轮询日志（低频）；抓取中才偶尔刷新节点，避免频繁大列表重渲染
   useEffect(() => {
@@ -655,6 +680,71 @@ export default function GitHubCrawlPage() {
   };
 
   const unpromotedValidIds = useMemo(() => nodes.filter((n) => n.isValid && !n.promoted).map((n) => n.id), [nodes]);
+
+  const openBlacklistDialog = (item = null) => {
+    if (item) {
+      setEditingBlacklistId(item.id);
+      setBlacklistForm({
+        scope: item.scope || 'link',
+        target: item.target || '',
+        repo: item.repo || '',
+        reason: item.reason || ''
+      });
+    } else {
+      setEditingBlacklistId(null);
+      setBlacklistForm({ scope: 'link', target: '', repo: '', reason: '' });
+    }
+    setBlacklistDialogOpen(true);
+  };
+
+  const handleSaveBlacklist = async () => {
+    if (!selectedId) return;
+    const target = (blacklistForm.target || '').trim();
+    if (!target) {
+      setError(t('githubCrawl.blacklist.targetRequired', '请填写目标（链接或仓库）'));
+      return;
+    }
+    setBlacklistSaving(true);
+    setError('');
+    try {
+      const payload = {
+        scope: blacklistForm.scope || 'link',
+        target,
+        repo: (blacklistForm.repo || '').trim(),
+        reason: (blacklistForm.reason || '').trim()
+      };
+      if (editingBlacklistId) {
+        await updateGitHubCrawlBlacklist(selectedId, editingBlacklistId, payload);
+        setMessage(t('githubCrawl.blacklist.updated', '黑名单已更新'));
+      } else {
+        await addGitHubCrawlBlacklist(selectedId, payload);
+        setMessage(t('githubCrawl.blacklist.created', '黑名单已添加'));
+      }
+      setBlacklistDialogOpen(false);
+      await loadBlacklist(selectedId);
+    } catch (e) {
+      setError(e.message || 'save blacklist failed');
+    } finally {
+      setBlacklistSaving(false);
+    }
+  };
+
+  const handleDeleteBlacklist = async (itemId) => {
+    if (!selectedId || !itemId) return;
+    if (!window.confirm(t('githubCrawl.blacklist.confirmDelete', '确认删除该黑名单项？'))) return;
+    try {
+      await deleteGitHubCrawlBlacklist(selectedId, itemId);
+      setMessage(t('githubCrawl.blacklist.deleted', '黑名单已删除'));
+      await loadBlacklist(selectedId);
+    } catch (e) {
+      setError(e.message || 'delete blacklist failed');
+    }
+  };
+
+  const visibleBlacklist = useMemo(
+    () => blacklist.filter((b) => !(b.scope === 'link' && String(b.target || '').startsWith('__zero_valid__:'))),
+    [blacklist]
+  );
 
   return (
     <MainCard title={t('githubCrawl.title', 'GitHub爬虫')}>
