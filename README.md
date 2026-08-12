@@ -75,52 +75,6 @@
 
 ## 🚀 快速开始
 
-### Docker Compose（推荐）
-
-> [!IMPORTANT]
-> 运行时数据默认保存在以下目录中，请在升级和迁移时保留：
->
-> - `./db`：数据库、配置文件、GeoIP 等本地数据
-> - `./template`：模板文件
-> - `./logs`：运行日志
-
-创建 `docker-compose.yml`：
-
-```yaml
-services:
-  sublinkpro:
-    image: zerodeng/sublink-pro
-    container_name: sublinkpro
-    ports:
-      - "8000:8000"
-    volumes:
-      - "./db:/app/db"
-      - "./template:/app/template"
-      - "./logs:/app/logs"
-    restart: unless-stopped
-```
-
-启动服务：
-
-```bash
-docker-compose up -d
-```
-
-访问 `http://localhost:8000`，使用默认账号 `admin` / `123456` 登录。
-
-默认使用 SQLite；如需切换到 MySQL 或 PostgreSQL，可通过 `SUBLINK_DSN`、配置文件 `dsn:` 或命令行 `--dsn` 指定数据库连接，示例见 [⚙️ 配置说明](docs/configuration.zh-CN.md)。
-
-> [!NOTE]
-> 即使配置了 `SUBLINK_WEB_BASE_PATH` 隐藏管理界面入口，API (`/api/*`) 与订阅/分享访问路径 (`/c/*`) 仍保持在根路径下，这是本项目特有的前后端集成行为。
-
-> [!TIP]
-> 更多安装方式（Docker、一键脚本、更新升级等）请参阅 [📦 安装部署指南](docs/installation.zh-CN.md)
-
-> [!TIP]
-> Docker 镜像已内置 `cloudflared`。登录后可在 `用户中心 -> Cloudflare Tunnel` 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。
-
-### 从源码构建 Docker 镜像并部署
-
 适合二次开发、本地调试，或无法拉取官方镜像时使用。仓库根目录已提供多阶段 `Dockerfile`（前端 Yarn 构建 → Go 编译 → Alpine 运行）。
 
 **1. 克隆源码并构建镜像**
@@ -179,6 +133,16 @@ git pull
 docker compose up -d --build --force-recreate
 # 数据目录 ./db ./template ./logs 会保留
 ```
+
+访问 `http://localhost:8000`，使用默认账号 `admin` / `123456` 登录。
+
+默认使用 SQLite；如需切换到 MySQL 或 PostgreSQL，可通过 `SUBLINK_DSN`、配置文件 `dsn:` 或命令行 `--dsn` 指定数据库连接，示例见 [⚙️ 配置说明](docs/configuration.zh-CN.md)。
+
+> [!NOTE]
+> 即使配置了 `SUBLINK_WEB_BASE_PATH` 隐藏管理界面入口，API (`/api/*`) 与订阅/分享访问路径 (`/c/*`) 仍保持在根路径下，这是本项目特有的前后端集成行为。
+
+> [!TIP]
+> Docker 镜像已内置 `cloudflared`。登录后可在 `用户中心 -> Cloudflare Tunnel` 填写 token 并启动；启用自动连接后会随服务启动连接 Tunnel。
 
 > [!NOTE]
 > - 构建需要能访问 Docker Hub / npm / Go 模块代理；国内可配置 Docker 镜像加速与 `GOPROXY`（Dockerfile 已默认 `goproxy.cn`）。
@@ -273,47 +237,3 @@ docker compose up -d --build --force-recreate
 | ![预览11](docs/images/11.jpg) | ![预览12](docs/images/12.jpg) |
 
 </details>
-
----
-
-## 📊 项目统计
-
-<div align="center">
-
-[//]: # (  <img src="https://repobeez.abhijithganesh.com/api/insert/ZeroDeng01/sublinkPro" alt="Repobeez" height="0" width="0" style="display: none"/>)
-  
-  ![Star History Chart](https://api.star-history.com/svg?repos=ZeroDeng01/sublinkPro&type=Date)
-</div>
-
----
-
-## 🤝 贡献与支持
-
-如果这个项目对您有帮助，欢迎：
-
-- ⭐ **Star** 这个项目表示支持
-- 🐛 提交 [Issue](https://github.com/ZeroDeng01/sublinkPro/issues) 反馈问题或建议
-- 🔧 提交 Pull Request 贡献代码
-- 📖 完善文档和使用教程
-
-### 🌟 优质推荐
-
-如果需要购买服务器，可以通过以下链接支持维护者。请注意，点击购买可能会为维护者带来佣金奖励；具体价格、活动资格、线路表现与续费规则请以官方页面为准。
-
-- **[BandwagonHost (搬瓦工)](https://bandwagonhost.com/aff.php?aff=19245)**：精品线路，提供多机房与 CN2 GIA 等线路方案，适合优质线路机。也可以当作稳定落地机结合打野节点使用。亮点：多机房 VPS 方案、可关注 CN2 GIA 优化线路、高质量线路机。
-- **[Vultr](https://www.vultr.com/?ref=8055869)**：海量机房可选，按小时结算收费，IP随时更换、地区可随时更换，最低$2.5/月，适合建站和 AI 服务托管等，也可作为线路机和落地机使用。亮点：多机房地区可选、按小时计费、低价稳定、有纯 V6 机器。
-- **[阿里云 (Aliyun)](https://www.aliyun.com/minisite/goods?userCode=brje0cbs)**：99 元/年服务器新购续费同价，适合日常建站和测试，可部署 newapi 和 sublinkPro 等服务，通过链接注册可享受优惠（AI 等均可使用折扣）。亮点：适合国内部署与开发测试、99 元/年服务器新购续费同价、可领折扣券。
-
-### 🙏 致谢
-
-感谢以下项目的开源贡献：
-
-- [sublinkX](https://github.com/gooaclok819/sublinkX) / [sublinkE](https://github.com/eun1e/sublinkE) - 原始项目
-- [Berry Free React Admin Template](https://github.com/codedthemes/berry-free-react-admin-template) - 前端模板
-- [Mihomo](https://github.com/MetaCubeX/mihomo) - 代理核心
-
----
-
-<div align="center">
-  <sub>Made with ❤️ by <a href="https://github.com/ZeroDeng01">ZeroDeng01</a></sub>
-</div>
