@@ -30,8 +30,17 @@ type GitHubCrawlConfig struct {
 	LastStatus         string     `json:"lastStatus"`
 	LastMessage        string     `gorm:"type:text" json:"lastMessage"`
 	AutoPromote        bool       `gorm:"default:false" json:"autoPromote"`
-	CreatedAt          time.Time  `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt          time.Time  `gorm:"autoUpdateTime" json:"updatedAt"`
+	// ---- 独立节点定时全测 ----
+	TestEnabled           bool       `gorm:"default:false" json:"testEnabled"`           // 是否启用定时全测
+	TestCronExpr          string     `gorm:"default:''" json:"testCronExpr"`             // 定时全测 cron 表达式
+	TestProfileID         int        `gorm:"default:0" json:"testProfileId"`             // 使用的节点检测策略 ID（0 表示未配置）
+	TestFailureThreshold  int        `gorm:"default:3" json:"testFailureThreshold"`      // 连续失败多少次后自动删除（<=0 表示禁用自动删除）
+	TestAutoDeleteEnabled bool       `gorm:"default:false" json:"testAutoDeleteEnabled"` // 是否启用连续失败自动删除
+	LastTestTime          *time.Time `json:"lastTestTime"`                               // 最近一次定时全测时间
+	LastTestStatus        string     `json:"lastTestStatus"`                             // success/failed/cancelled
+	LastTestMessage       string     `gorm:"type:text" json:"lastTestMessage"`           // 最近一次定时全测结果摘要
+	CreatedAt             time.Time  `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt             time.Time  `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 func (GitHubCrawlConfig) TableName() string { return "github_crawl_configs" }
@@ -43,6 +52,7 @@ func (c *GitHubCrawlConfig) normalize() {
 	c.CronExpr = strings.TrimSpace(c.CronExpr)
 	c.Group = strings.TrimSpace(c.Group)
 	c.Remark = strings.TrimSpace(c.Remark)
+	c.TestCronExpr = strings.TrimSpace(c.TestCronExpr)
 	if c.SearchInterval < 0 {
 		c.SearchInterval = 0
 	}
@@ -58,6 +68,16 @@ func (c *GitHubCrawlConfig) normalize() {
 	if c.Group == "" {
 		c.Group = "github"
 	}
+	if c.TestProfileID < 0 {
+		c.TestProfileID = 0
+	}
+	if c.TestFailureThreshold < 0 {
+		c.TestFailureThreshold = 0
+	}
+	if c.TestFailureThreshold == 0 && c.TestAutoDeleteEnabled {
+		// 0 表示禁用：若启用开关开启但阈值未设置，给一个保守的默认值 3
+		c.TestFailureThreshold = 3
+	}
 }
 
 // Add 新建配置
@@ -72,6 +92,7 @@ func (c *GitHubCrawlConfig) Update() error {
 	return database.DB.Model(c).Select(
 		"Name", "GitHubToken", "SearchKeywords", "SearchInterval", "CollectionInterval",
 		"MaxCrawlLinks", "UseProxy", "CronExpr", "Enabled", "Group", "Remark", "AutoPromote",
+		"TestEnabled", "TestCronExpr", "TestProfileID", "TestFailureThreshold", "TestAutoDeleteEnabled",
 	).Updates(c).Error
 }
 
@@ -115,6 +136,22 @@ func (c *GitHubCrawlConfig) UpdateRunStatus(status, message string, lastRun, nex
 	if nextRun != nil {
 		updates["next_run_time"] = nextRun
 		c.NextRunTime = nextRun
+	}
+	return database.DB.Model(c).Updates(updates).Error
+}
+
+// UpdateTestRunStatus 更新定时全测的状态/时间/消息。
+// lastTest/nextTest 非 nil 时更新对应字段。
+func (c *GitHubCrawlConfig) UpdateTestRunStatus(status, message string, lastTest *time.Time) error {
+	updates := map[string]any{
+		"last_test_status":  status,
+		"last_test_message": message,
+	}
+	c.LastTestStatus = status
+	c.LastTestMessage = message
+	if lastTest != nil {
+		updates["last_test_time"] = lastTest
+		c.LastTestTime = lastTest
 	}
 	return database.DB.Model(c).Updates(updates).Error
 }
@@ -401,25 +438,28 @@ func ClearGitHubCrawlLogs(configID int) error {
 
 // GitHubCrawlNode 独立节点列表
 type GitHubCrawlNode struct {
-	ID             int       `gorm:"primaryKey" json:"id"`
-	ConfigID       int       `gorm:"index" json:"configId"`
-	RunID          int       `gorm:"index" json:"runId"`
-	Link           string    `gorm:"type:text" json:"link"`
-	Name           string    `json:"name"`
-	Protocol       string    `gorm:"index" json:"protocol"`
-	LinkAddress    string    `json:"linkAddress"`
-	LinkHost       string    `json:"linkHost"`
-	LinkPort       string    `json:"linkPort"`
-	ContentHash    string    `gorm:"index" json:"contentHash"`
-	DelayTime      int       `json:"delayTime"`
-	Speed          float64   `json:"speed"`
-	DelayStatus    string    `gorm:"default:'untested'" json:"delayStatus"`
-	SpeedStatus    string    `gorm:"default:'untested'" json:"speedStatus"`
-	IsValid        bool      `gorm:"index;default:false" json:"isValid"`
-	Promoted       bool      `gorm:"index;default:false" json:"promoted"`
-	PromotedNodeID int       `json:"promotedNodeId"`
-	CreatedAt      time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID             int     `gorm:"primaryKey" json:"id"`
+	ConfigID       int     `gorm:"index" json:"configId"`
+	RunID          int     `gorm:"index" json:"runId"`
+	Link           string  `gorm:"type:text" json:"link"`
+	Name           string  `json:"name"`
+	Protocol       string  `gorm:"index" json:"protocol"`
+	LinkAddress    string  `json:"linkAddress"`
+	LinkHost       string  `json:"linkHost"`
+	LinkPort       string  `json:"linkPort"`
+	ContentHash    string  `gorm:"index" json:"contentHash"`
+	DelayTime      int     `json:"delayTime"`
+	Speed          float64 `json:"speed"`
+	DelayStatus    string  `gorm:"default:'untested'" json:"delayStatus"`
+	SpeedStatus    string  `gorm:"default:'untested'" json:"speedStatus"`
+	IsValid        bool    `gorm:"index;default:false" json:"isValid"`
+	Promoted       bool    `gorm:"index;default:false" json:"promoted"`
+	PromotedNodeID int     `json:"promotedNodeId"`
+	// ---- 连续失败追踪（用于自动删除） ----
+	ConsecutiveFailures int        `gorm:"default:0" json:"consecutiveFailures"` // 连续失败计数（成功清零、失败+1）
+	LastTestedAt        *time.Time `json:"lastTestedAt"`                         // 最近一次测试时间
+	CreatedAt           time.Time  `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt           time.Time  `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 func (GitHubCrawlNode) TableName() string { return "github_crawl_nodes" }
@@ -607,6 +647,56 @@ func UpdateGitHubCrawlNodeTestResult(id int, delayTime int, delayStatus string, 
 		"speed_status": speedStatus,
 		"is_valid":     isValid,
 	}).Error
+}
+
+// GitHubCrawlTestOutcome 一次测试的最终结论（用于连续失败计数）
+type GitHubCrawlTestOutcome string
+
+const (
+	// GitHubCrawlTestOutcomeSuccess 测试通过
+	GitHubCrawlTestOutcomeSuccess GitHubCrawlTestOutcome = "success"
+	// GitHubCrawlTestOutcomeFailure 测试失败（延迟/速度都不达标）
+	GitHubCrawlTestOutcomeFailure GitHubCrawlTestOutcome = "failure"
+)
+
+// UpdateGitHubCrawlNodeTestResultWithOutcome 更新测速结果并维护连续失败计数。
+// success → ConsecutiveFailures 清零；failure → +1。LastTestedAt 总是更新为 now。
+func UpdateGitHubCrawlNodeTestResultWithOutcome(
+	id int,
+	delayTime int,
+	delayStatus string,
+	speed float64,
+	speedStatus string,
+	isValid bool,
+	outcome GitHubCrawlTestOutcome,
+) error {
+	now := time.Now()
+	updates := map[string]any{
+		"delay_time":     delayTime,
+		"delay_status":   delayStatus,
+		"speed":          speed,
+		"speed_status":   speedStatus,
+		"is_valid":       isValid,
+		"last_tested_at": &now,
+	}
+	if outcome == GitHubCrawlTestOutcomeSuccess {
+		updates["consecutive_failures"] = 0
+	} else {
+		// 用原子 SQL 避免读改竞态；+1 起步即可
+		updates["consecutive_failures"] = gorm.Expr("consecutive_failures + 1")
+	}
+	return database.DB.Model(&GitHubCrawlNode{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// ListGitHubCrawlNodesByIDsForAutoDelete 拉取达到连续失败阈值的独立节点（限定 configID）。
+func ListGitHubCrawlNodesByIDsForAutoDelete(configID int, ids []int, threshold int) ([]GitHubCrawlNode, error) {
+	if len(ids) == 0 || threshold <= 0 {
+		return nil, nil
+	}
+	var list []GitHubCrawlNode
+	err := database.DB.Where("config_id = ? AND id IN ? AND consecutive_failures >= ?",
+		configID, ids, threshold).Find(&list).Error
+	return list, err
 }
 
 // GitHubCrawlBlacklist 爬虫黑名单：链接失败 / 仓库全 404 / 多次 0 有效节点

@@ -571,6 +571,8 @@
     "enable": "Enable cross-airport deduplication",
     "enabledInfo": "Currently <strong>enabled</strong>: nodes with identical configuration across airports (same ContentHash) keep only the first imported copy to avoid duplicates.",
     "disabledInfo": "Currently <strong>disabled</strong>: each airport keeps its own nodes even if another airport has identical node content. Duplicate nodes inside the same airport are still deduplicated.",
+    "landingIPEnable": "Deduplicate by exit IP",
+    "landingIPInfo": "Currently <strong>enabled</strong>: after speed testing obtains the exit IP (landing IP), duplicate nodes sharing the same exit IP across airports are automatically cleaned/filtered, keeping only the one with the best quality. Nodes need to be latency/speed tested first to obtain the exit IP.",
     "messages": {
       "saveSuccess": "Node deduplication settings saved",
       "saveFailed": "Save failed"
@@ -1920,6 +1922,7 @@
       "source": "Source",
       "tags": "Tags",
       "country": "Country",
+      "landingIP": "Exit IP",
       "delay": "Delay",
       "speed": "Speed",
       "ipFeatures": "IP Features",

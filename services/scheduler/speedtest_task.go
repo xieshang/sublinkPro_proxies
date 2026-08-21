@@ -723,6 +723,14 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 		}
 	}
 
+	// 基于出口IP（落地IP）去重：测速拿到出口IP后，跨机场清理同出口IP的重复节点
+	{
+		cleanupCount := models.CleanupLandingIPDuplicates()
+		if cleanupCount > 0 {
+			utils.Info("测速完成后出口IP去重: 共清理 %d 个重复节点", cleanupCount)
+		}
+	}
+
 	// 批量保存Host映射到数据库（如果开启了持久化）
 	if persistHost && len(hostMappings) > 0 {
 		// 去重：同一个hostname可能被多个节点使用，只保留第一个

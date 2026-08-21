@@ -407,6 +407,18 @@ export default function NodeTable({
               </TableCell>
               <TableCell
                 sx={{
+                  width: columnWidths.landingIP,
+                  minWidth: 60,
+                  position: 'relative',
+                  bgcolor: resizing?.columnKey === 'landingIP' ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+                  transition: 'background-color 0.15s ease'
+                }}
+              >
+                {t('nodes.table.landingIP')}
+                <ResizeHandle columnKey="landingIP" />
+              </TableCell>
+              <TableCell
+                sx={{
                   width: columnWidths.delay,
                   minWidth: 60,
                   position: 'relative',
@@ -594,6 +606,28 @@ export default function NodeTable({
                         />
                       );
                     })()}
+                  </TableCell>
+                  <TableCell>
+                    {node.LandingIP ? (
+                      <Tooltip title={node.LandingIP}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '100%',
+                            fontFamily: 'monospace'
+                          }}
+                        >
+                          {node.LandingIP}
+                        </Typography>
+                      </Tooltip>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        -
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, alignItems: 'flex-start' }}>

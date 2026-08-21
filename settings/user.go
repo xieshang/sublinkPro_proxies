@@ -4,12 +4,6 @@ import (
 	"sublink/models"
 	"sublink/utils"
 )
-package settings
-
-import (
-	"sublink/models"
-	"sublink/utils"
-)
 
 // 重置默认用户 - 只更新admin用户的密码，不删除其他用户
 func ResetUser(username string, password string) {

@@ -73,6 +73,18 @@ The current `ippure` style API returns fields such as `fraudScore`, `isBroadcast
 
 ---
 
+## 🧹 Exit IP (Landing IP) Deduplication
+
+In **Application Settings -> Node Deduplication**, enable **Deduplicate by exit IP** (`landingIPDedupEnabled`). After speed tests obtain each node's exit IP:
+
+- **Subscription output**: nodes sharing the same exit IP keep only the first occurrence; empty exit IPs are always kept.
+- **After speed tests complete**: cross-airport duplicates sharing the same exit IP are cleaned automatically, keeping the best-quality node (fully tested first, then lower latency, then higher speed). Manually added nodes are never deleted.
+
+> [!NOTE]
+> Nodes must run latency/speed tests first to obtain an exit IP. The Node Management table/card also shows an **Exit IP** column for inspection.
+
+---
+
 ## 🌍 Unlock Checks
 
 After enabling **unlock check** in “Check Settings”, the system runs selected Provider probes during the node check flow.

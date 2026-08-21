@@ -158,6 +158,16 @@ export default function NodeCard({ node, isSelected, tagColorMap, protocolMeta, 
               />
             );
           })()}
+          {node.LandingIP && (
+            <Chip
+              icon={<span style={{ fontSize: '12px', marginLeft: '8px' }}>🌍</span>}
+              label={node.LandingIP}
+              color="default"
+              variant="outlined"
+              size="small"
+              sx={{ maxWidth: '100%', '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+            />
+          )}
         </Stack>
 
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>

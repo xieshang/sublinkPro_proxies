@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sublink/utils"
@@ -169,7 +170,9 @@ func IsTemplateEditMockProviderAllowed() bool {
 			return true
 		}
 	}
-	return strings.HasSuffix(os.Args[0], ".test")
+	base := strings.ToLower(filepath.Base(os.Args[0]))
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	return strings.HasSuffix(base, ".test") || strings.Contains(strings.ToLower(os.Args[0]), ".test")
 }
 
 func NormalizeRequestType(value string) string {

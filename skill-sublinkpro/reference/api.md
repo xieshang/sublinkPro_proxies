@@ -799,3 +799,12 @@ Base: `/api/v1/total`
 ### 相关字段
 - `MaxCrawlLinks`：目标有效入库数
 - `AutoPromote`：自动加入总表开关
+- `TestEnabled` / `TestCronExpr`：独立节点定时全测开关与 cron（5 字段）
+- `TestProfileId`：定时全测使用的节点检测策略 ID
+- `TestFailureThreshold` / `TestAutoDeleteEnabled`：连续失败自动删除阈值与开关
+- 响应额外字段：`lastTestTime` / `lastTestStatus` / `lastTestMessage`；独立节点含 `consecutiveFailures`
+
+### 节点去重设置
+- **GET/POST** `/settings/node-dedup`
+- POST 请求体：`{crossAirportDedupEnabled, landingIPDedupEnabled}`（均可选，至少一项）
+- `landingIPDedupEnabled=true` 时：测速获取出口 IP 后，订阅输出按出口 IP 过滤重复节点，且测速完成后自动清理同出口 IP 的跨机场重复节点（保留质量最优者）

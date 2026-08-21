@@ -121,6 +121,15 @@ func (sm *SchedulerManager) LoadFromDatabase() error {
 				utils.Info("成功添加 GitHub 抓取定时任务 - ID: %d, Name: %s, Cron: %s",
 					cfg.ID, cfg.Name, cfg.CronExpr)
 			}
+			// 独立节点定时全测（仅在 TestEnabled + TestCronExpr 时注册）
+			if cfg.TestEnabled && stringsTrim(cfg.TestCronExpr) != "" {
+				if err := sm.AddGitHubCrawlTestJob(cfg.ID, cfg.TestCronExpr); err != nil {
+					utils.Error("添加 GitHub 独立节点全测定时任务失败 - ID: %d, Error: %v", cfg.ID, err)
+				} else {
+					utils.Info("成功添加 GitHub 独立节点全测定时任务 - ID: %d, Name: %s, Cron: %s",
+						cfg.ID, cfg.Name, cfg.TestCronExpr)
+				}
+			}
 		}
 	}
 

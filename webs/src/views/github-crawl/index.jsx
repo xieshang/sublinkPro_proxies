@@ -125,7 +125,13 @@ const emptyForm = {
   remark: '',
   autoPromote: false,
   hour: 6,
-  minute: 0
+  minute: 0,
+  // ---- 独立节点定时全测 ----
+  testEnabled: false,
+  testCronExpr: '0 0 */6 * * *',
+  testProfileId: 0,
+  testFailureThreshold: 3,
+  testAutoDeleteEnabled: false
 };
 
 export default function GitHubCrawlPage() {
@@ -158,6 +164,8 @@ export default function GitHubCrawlPage() {
   const [profiles, setProfiles] = useState([]);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [profilesLoading, setProfilesLoading] = useState(false);
+  // 定时全测策略下拉数据复用
+  const [testProfilesLoading, setTestProfilesLoading] = useState(false);
   const [blacklist, setBlacklist] = useState([]);
   const [blacklistForm, setBlacklistForm] = useState({ scope: 'link', target: '', repo: '', reason: '' });
   const [blacklistDialogOpen, setBlacklistDialogOpen] = useState(false);
@@ -312,7 +320,12 @@ export default function GitHubCrawlPage() {
       remark: selected.remark || '',
       autoPromote: !!selected.autoPromote,
       hour: interval.hour,
-      minute: interval.minute
+      minute: interval.minute,
+      testEnabled: !!selected.testEnabled,
+      testCronExpr: selected.testCronExpr || '0 0 */6 * * *',
+      testProfileId: selected.testProfileId ?? 0,
+      testFailureThreshold: selected.testFailureThreshold ?? 3,
+      testAutoDeleteEnabled: !!selected.testAutoDeleteEnabled
     });
     setLogAfterId(0);
     setPage(0);
@@ -354,9 +367,31 @@ export default function GitHubCrawlPage() {
         setError(t('githubCrawl.errors.intervalRequired', '请设置间隔小时或分钟（不能都为 0）'));
         return;
       }
+      if (form.testEnabled) {
+        if (!form.testCronExpr || !String(form.testCronExpr).trim()) {
+          setError(t('githubCrawl.errors.testCronRequired', '启用定时全测时必须填写 Cron 表达式'));
+          return;
+        }
+        if (!form.testProfileId) {
+          setError(t('githubCrawl.errors.testProfileRequired', '启用定时全测时必须选择节点检测策略'));
+          return;
+        }
+        if (form.testAutoDeleteEnabled && (!Number(form.testFailureThreshold) || Number(form.testFailureThreshold) <= 0)) {
+          setError(t('githubCrawl.errors.testThresholdInvalid', '启用连续失败自动删除时阈值必须大于 0'));
+          return;
+        }
+      }
       const cronExpr = intervalToCron(hour, minute);
-      const { hour: _h, minute: _m, ...rest } = form;
-      const payload = { ...rest, cronExpr, hour, minute };
+      const { hour: _ignoredHour, minute: _ignoredMinute, ...rest } = form;
+      void _ignoredHour;
+      void _ignoredMinute;
+      const payload = {
+        ...rest,
+        cronExpr,
+        hour,
+        minute,
+        testFailureThreshold: Number(form.testFailureThreshold) || 0
+      };
       if (selectedId) {
         await updateGitHubCrawlConfig(selectedId, payload);
         setMessage(t('githubCrawl.messages.updated', '配置已更新'));
@@ -560,6 +595,22 @@ export default function GitHubCrawlPage() {
       setProfilesLoading(false);
     }
   };
+
+  // 加载定时全测策略下拉（懒加载：仅在展开/启用时拉一次）
+  const loadTestProfiles = useCallback(async () => {
+    if (profiles.length > 0 || testProfilesLoading) return;
+    setTestProfilesLoading(true);
+    try {
+      const res = await getSpeedTestConfig();
+      const list = res?.data || res || [];
+      const arr = Array.isArray(list) ? list : [];
+      setProfiles(arr);
+    } catch {
+      // ignore
+    } finally {
+      setTestProfilesLoading(false);
+    }
+  }, [profiles.length, testProfilesLoading]);
 
   const handleConfirmFullTest = async () => {
     if (!selectedId || !selectedProfileId) {
@@ -934,6 +985,112 @@ export default function GitHubCrawlPage() {
                         )}
                       </Typography>
                     </Grid>
+                  </Grid>
+
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2">
+                    {t('githubCrawl.testSchedule.title', '独立节点定时全测')}
+                    {selected?.lastTestTime ? (
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        {t('githubCrawl.testSchedule.lastRun', '上次：{{time}} · {{status}}', {
+                          time: new Date(selected.lastTestTime).toLocaleString(),
+                          status: selected.lastTestStatus || '-'
+                        })}
+                      </Typography>
+                    ) : null}
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={!!form.testEnabled}
+                            onChange={(e) => {
+                              const on = e.target.checked;
+                              setForm({ ...form, testEnabled: on });
+                              if (on) loadTestProfiles();
+                            }}
+                          />
+                        }
+                        label={t('githubCrawl.testSchedule.enable', '启用定时全测')}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label={t('githubCrawl.testSchedule.cron', '全测 Cron')}
+                        value={form.testCronExpr}
+                        onChange={(e) => setForm({ ...form, testCronExpr: e.target.value })}
+                        placeholder="0 0 */6 * * *"
+                        helperText={t(
+                          'githubCrawl.testSchedule.cronHelp',
+                          '标准 5 字段 cron；空表示不调度（仍可手动触发）'
+                        )}
+                        disabled={!form.testEnabled}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <FormControl fullWidth size="small" disabled={!form.testEnabled}>
+                        <InputLabel id="gh-test-profile-label">
+                          {t('githubCrawl.testSchedule.profile', '检测策略')}
+                        </InputLabel>
+                        <Select
+                          labelId="gh-test-profile-label"
+                          label={t('githubCrawl.testSchedule.profile', '检测策略')}
+                          value={form.testProfileId || ''}
+                          onChange={(e) => setForm({ ...form, testProfileId: Number(e.target.value) || 0 })}
+                          onOpen={() => loadTestProfiles()}
+                        >
+                          {profiles.length === 0 ? (
+                            <MenuItem value="" disabled>
+                              {testProfilesLoading
+                                ? t('common.loading', '加载中…')
+                                : t('githubCrawl.noProfiles', '暂无节点检测策略，请先到「节点检测」中创建策略。')}
+                            </MenuItem>
+                          ) : null}
+                          {profiles.map((p) => (
+                            <MenuItem key={p.id} value={p.id}>
+                              {p.name}
+                              {p.mode ? ` (${p.mode})` : ''}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={!!form.testAutoDeleteEnabled}
+                              onChange={(e) => setForm({ ...form, testAutoDeleteEnabled: e.target.checked })}
+                              disabled={!form.testEnabled}
+                            />
+                          }
+                          label={t('githubCrawl.testSchedule.autoDelete', '连续失败自动删除')}
+                        />
+                        <TextField
+                          size="small"
+                          type="number"
+                          label={t('githubCrawl.testSchedule.threshold', '失败次数阈值')}
+                          value={form.testFailureThreshold}
+                          onChange={(e) => setForm({ ...form, testFailureThreshold: Number(e.target.value) || 0 })}
+                          inputProps={{ min: 1, max: 100 }}
+                          sx={{ width: 140 }}
+                          disabled={!form.testEnabled || !form.testAutoDeleteEnabled}
+                        />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {t(
+                          'githubCrawl.testSchedule.autoDeleteHelp',
+                          '开启后：节点连续失败达到阈值时自动从独立节点列表删除；若曾加入总表会一并清理。建议阈值 ≥ 3。'
+                        )}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField
                         fullWidth
@@ -1158,6 +1315,14 @@ export default function GitHubCrawlPage() {
                               {n.promoted ? (
                                 <Chip size="small" color="info" label={t('githubCrawl.filter.promotedYes', '已加入')} />
                               ) : null}
+                              {Number(n.consecutiveFailures) > 0 ? (
+                                <Chip
+                                  size="small"
+                                  color="warning"
+                                  variant="outlined"
+                                  label={t('githubCrawl.consecutiveFailures', '连败 {{n}}', { n: n.consecutiveFailures })}
+                                />
+                              ) : null}
                             </Stack>
                           </TableCell>
                           <TableCell align="right">
@@ -1253,23 +1418,39 @@ export default function GitHubCrawlPage() {
               </Stack>
 
               <Box sx={{ maxHeight: 280, overflow: 'auto', width: '100%' }}>
-                <Table size="small" stickyHeader>
+                <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>{t('githubCrawl.blacklist.target', '目标')}</TableCell>
-                      <TableCell>{t('githubCrawl.blacklist.scopeLink', '范围')}</TableCell>
-                      <TableCell>{t('githubCrawl.blacklist.reason', '原因')}</TableCell>
-                      <TableCell align="right">{t('common.actions', '操作')}</TableCell>
+                      <TableCell sx={{ width: { xs: 180, sm: 280, md: 360 } }}>
+                        {t('githubCrawl.blacklist.target', '目标')}
+                      </TableCell>
+                      <TableCell sx={{ width: 90 }}>
+                        {t('githubCrawl.blacklist.scopeLink', '范围')}
+                      </TableCell>
+                      <TableCell sx={{ width: { xs: 120, sm: 200, md: 280 } }}>
+                        {t('githubCrawl.blacklist.reason', '原因')}
+                      </TableCell>
+                      <TableCell align="right" sx={{ width: 100 }}>
+                        {t('common.actions', '操作')}
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {visibleBlacklist.map((item) => (
                       <TableRow key={item.id} hover>
-                        <TableCell>{item.target}</TableCell>
+                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Box component="span" title={item.target} sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.target}
+                          </Box>
+                        </TableCell>
                         <TableCell>
                           <Chip size="small" label={t(`githubCrawl.blacklist.scope${item.scope === 'repo' ? 'Repo' : 'Link'}`, item.scope)} />
                         </TableCell>
-                        <TableCell>{item.reason || '-'}</TableCell>
+                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Box component="span" title={item.reason || '-'} sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.reason || '-'}
+                          </Box>
+                        </TableCell>
                         <TableCell align="right">
                           <IconButton size="small" color="warning" onClick={() => openBlacklistDialog(item)}>
                             <IconEdit size={16} />

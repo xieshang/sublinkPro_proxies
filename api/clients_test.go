@@ -99,9 +99,16 @@ func setupClientsAPITestDB(t *testing.T) {
 func createClientSubscriptionFixture(t *testing.T, clashTemplatePath, surgeTemplatePath, subName, token, linkName string) {
 	t.Helper()
 
+	configBytes, err := json.Marshal(map[string]string{
+		"clash": clashTemplatePath,
+		"surge": surgeTemplatePath,
+	})
+	if err != nil {
+		t.Fatalf("marshal subscription config: %v", err)
+	}
 	sub := models.Subcription{
 		Name:                  subName,
-		Config:                `{"clash":"` + clashTemplatePath + `","surge":"` + surgeTemplatePath + `"}`,
+		Config:                string(configBytes),
 		RefreshUsageOnRequest: false,
 	}
 	if err := sub.Add(); err != nil {
@@ -338,14 +345,17 @@ func renderPreparedClientProxyNames(t *testing.T, clientType string, nodeNameRul
 	ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/c/?client="+clientType, nil)
 
 	templatePath := writeTestClashTemplate(t)
-	config := `{"clash":"` + templatePath + `"}`
+	clashConfigBytes, err := json.Marshal(map[string]string{"clash": templatePath})
+	if err != nil {
+		t.Fatalf("marshal clash config: %v", err)
+	}
 	prepared := preparedClientResponse{
 		ClientType: clientType,
 		Mode:       clientResponseNormal,
 		SubName:    "duplicate-name-sub",
 		Subscription: models.Subcription{
 			Name:                  "duplicate-name-sub",
-			Config:                config,
+			Config:                string(clashConfigBytes),
 			RefreshUsageOnRequest: false,
 			NodeNameRule:          nodeNameRule,
 			Nodes:                 nodes,
@@ -353,7 +363,11 @@ func renderPreparedClientProxyNames(t *testing.T, clientType string, nodeNameRul
 	}
 	if clientType == "surge" {
 		templatePath = writeTestSurgeTemplate(t)
-		prepared.Subscription.Config = `{"surge":"` + templatePath + `"}`
+		surgeConfigBytes, err := json.Marshal(map[string]string{"surge": templatePath})
+		if err != nil {
+			t.Fatalf("marshal surge config: %v", err)
+		}
+		prepared.Subscription.Config = string(surgeConfigBytes)
 		renderPreparedSurge(ginContext, prepared)
 		return surgeProxyNamesFromBody(recorder.Body.String())
 	}
@@ -804,13 +818,17 @@ func TestRenderPreparedClashSetsProfileUpdateIntervalHeader(t *testing.T) {
 			ginContext, _ := gin.CreateTestContext(recorder)
 			ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/c/?client=clash", nil)
 
+			clashConfigBytes, err := json.Marshal(map[string]string{"clash": clashTemplatePath})
+			if err != nil {
+				t.Fatalf("marshal clash config: %v", err)
+			}
 			renderPreparedClash(ginContext, preparedClientResponse{
 				ClientType: "clash",
 				Mode:       clientResponseNormal,
 				SubName:    "interval-sub",
 				Subscription: models.Subcription{
 					Name:                  "interval-sub",
-					Config:                `{"clash":"` + clashTemplatePath + `"}`,
+					Config:                string(clashConfigBytes),
 					RefreshUsageOnRequest: false,
 					UpdateInterval:        tt.updateInterval,
 				},
@@ -890,13 +908,17 @@ func TestRenderPreparedSurgeUsesSubscriptionUpdateIntervalSeconds(t *testing.T) 
 			ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/c/?client=surge", nil)
 			ginContext.Request.Host = "example.test"
 
+			surgeConfigBytes, err := json.Marshal(map[string]string{"surge": surgeTemplatePath})
+			if err != nil {
+				t.Fatalf("marshal surge config: %v", err)
+			}
 			renderPreparedSurge(ginContext, preparedClientResponse{
 				ClientType: "surge",
 				Mode:       clientResponseNormal,
 				SubName:    "interval-sub",
 				Subscription: models.Subcription{
 					Name:                  "interval-sub",
-					Config:                `{"surge":"` + surgeTemplatePath + `"}`,
+					Config:                string(surgeConfigBytes),
 					RefreshUsageOnRequest: false,
 					UpdateInterval:        tt.updateInterval,
 				},
@@ -919,13 +941,17 @@ func TestRenderPreparedSurgeRewritesExistingManagedConfigInterval(t *testing.T) 
 	ginContext, _ := gin.CreateTestContext(recorder)
 	ginContext.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/c/?client=surge", nil)
 
+	surgeConfigBytes, err := json.Marshal(map[string]string{"surge": surgeTemplatePath})
+	if err != nil {
+		t.Fatalf("marshal surge config: %v", err)
+	}
 	renderPreparedSurge(ginContext, preparedClientResponse{
 		ClientType: "surge",
 		Mode:       clientResponseNormal,
 		SubName:    "managed-interval-sub",
 		Subscription: models.Subcription{
 			Name:                  "managed-interval-sub",
-			Config:                `{"surge":"` + surgeTemplatePath + `"}`,
+			Config:                string(surgeConfigBytes),
 			RefreshUsageOnRequest: false,
 			UpdateInterval:        6,
 		},

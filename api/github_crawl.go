@@ -30,6 +30,12 @@ type githubCrawlConfigRequest struct {
 	Group              string `json:"group"`
 	Remark             string `json:"remark"`
 	AutoPromote        bool   `json:"autoPromote"`
+	// ---- 独立节点定时全测 ----
+	TestEnabled           bool   `json:"testEnabled"`
+	TestCronExpr          string `json:"testCronExpr"`
+	TestProfileID         int    `json:"testProfileId"`
+	TestFailureThreshold  int    `json:"testFailureThreshold"`
+	TestAutoDeleteEnabled bool   `json:"testAutoDeleteEnabled"`
 }
 
 type githubCrawlToggleRequest struct {
@@ -82,11 +88,30 @@ func applyGitHubCrawlRequest(cfg *models.GitHubCrawlConfig, req githubCrawlConfi
 	cfg.Group = strings.TrimSpace(req.Group)
 	cfg.Remark = strings.TrimSpace(req.Remark)
 	cfg.AutoPromote = req.AutoPromote
+	cfg.TestEnabled = req.TestEnabled
+	cfg.TestCronExpr = strings.TrimSpace(req.TestCronExpr)
+	cfg.TestProfileID = req.TestProfileID
+	cfg.TestFailureThreshold = req.TestFailureThreshold
+	cfg.TestAutoDeleteEnabled = req.TestAutoDeleteEnabled
 	if cfg.Name == "" {
 		return errNameRequired
 	}
 	if !validateGitHubCrawlCron(cfg.CronExpr) {
 		return errInvalidCron
+	}
+	if !validateGitHubCrawlCron(cfg.TestCronExpr) {
+		return &simpleError{"定时全测 Cron 表达式无效，需为 5 字段格式"}
+	}
+	if cfg.TestEnabled {
+		if cfg.TestCronExpr == "" {
+			return &simpleError{"启用定时全测时必须填写 Cron 表达式"}
+		}
+		if cfg.TestProfileID <= 0 {
+			return &simpleError{"启用定时全测时必须选择节点检测策略"}
+		}
+		if cfg.TestAutoDeleteEnabled && cfg.TestFailureThreshold <= 0 {
+			return &simpleError{"启用连续失败自动删除时阈值必须 > 0"}
+		}
 	}
 	return nil
 }
@@ -143,6 +168,7 @@ func GitHubCrawlAdd(c *gin.Context) {
 	}
 	sch := scheduler.GetSchedulerManager()
 	_ = sch.UpdateGitHubCrawlJob(cfg.ID, cfg.CronExpr, cfg.Enabled)
+	_ = sch.UpdateGitHubCrawlTestJob(cfg.ID, cfg.TestCronExpr, cfg.TestEnabled)
 	utils.OkDetailed(c, "创建成功", cfg)
 }
 
@@ -172,6 +198,7 @@ func GitHubCrawlUpdate(c *gin.Context) {
 	}
 	sch := scheduler.GetSchedulerManager()
 	_ = sch.UpdateGitHubCrawlJob(cfg.ID, cfg.CronExpr, cfg.Enabled)
+	_ = sch.UpdateGitHubCrawlTestJob(cfg.ID, cfg.TestCronExpr, cfg.TestEnabled)
 	utils.OkDetailed(c, "更新成功", cfg)
 }
 
@@ -188,6 +215,7 @@ func GitHubCrawlDelete(c *gin.Context) {
 	}
 	sch := scheduler.GetSchedulerManager()
 	sch.RemoveGitHubCrawlJob(id)
+	sch.RemoveGitHubCrawlTestJob(id)
 	if err := cfg.Delete(); err != nil {
 		utils.FailWithMsg(c, "删除失败: "+err.Error())
 		return
@@ -218,6 +246,7 @@ func GitHubCrawlToggle(c *gin.Context) {
 	}
 	sch := scheduler.GetSchedulerManager()
 	_ = sch.UpdateGitHubCrawlJob(cfg.ID, cfg.CronExpr, cfg.Enabled)
+	_ = sch.UpdateGitHubCrawlTestJob(cfg.ID, cfg.TestCronExpr, cfg.TestEnabled)
 	utils.OkDetailed(c, "更新成功", cfg)
 }
 
@@ -467,23 +496,7 @@ func loadGitHubCrawlNodesForTest(configID int, nodeIDs []int) ([]models.GitHubCr
 }
 
 func githubCrawlNodesToLinkItems(configID int, nodes []models.GitHubCrawlNode) []scheduler.LinkTestItem {
-	items := make([]scheduler.LinkTestItem, 0, len(nodes))
-	for _, gn := range nodes {
-		if gn.ConfigID != configID || strings.TrimSpace(gn.Link) == "" {
-			continue
-		}
-		items = append(items, scheduler.LinkTestItem{
-			ID:              gn.ID,
-			Link:            gn.Link,
-			Name:            gn.Name,
-			PrevDelayTime:   gn.DelayTime,
-			PrevDelayStatus: gn.DelayStatus,
-			PrevSpeed:       gn.Speed,
-			PrevSpeedStatus: gn.SpeedStatus,
-			PrevIsValid:     gn.IsValid,
-		})
-	}
-	return items
+	return scheduler.GitHubCrawlNodesToLinkItems(configID, nodes)
 }
 
 func runGitHubCrawlLinkTests(configID int, nodes []models.GitHubCrawlNode, profileID int, mode scheduler.LinkTestMode) scheduler.LinkTestSummary {

@@ -24,6 +24,7 @@ import { getNodeDedupConfig, updateNodeDedupConfig } from 'api/settings';
 export default function NodeDedupSettings({ showMessage }) {
   const { t } = useTranslation();
   const [crossAirportDedupEnabled, setCrossAirportDedupEnabled] = useState(true);
+  const [landingIPDedupEnabled, setLandingIPDedupEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function NodeDedupSettings({ showMessage }) {
       const res = await getNodeDedupConfig();
       if (res.data) {
         setCrossAirportDedupEnabled(res.data.crossAirportDedupEnabled !== false);
+        setLandingIPDedupEnabled(res.data.landingIPDedupEnabled === true);
       }
     } catch (error) {
       console.error('获取节点去重配置失败:', error);
@@ -44,7 +46,7 @@ export default function NodeDedupSettings({ showMessage }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateNodeDedupConfig({ crossAirportDedupEnabled });
+      await updateNodeDedupConfig({ crossAirportDedupEnabled, landingIPDedupEnabled });
       showMessage(t('nodeDedup.messages.saveSuccess'));
     } catch (error) {
       console.error('保存失败:', error);
@@ -74,6 +76,15 @@ export default function NodeDedupSettings({ showMessage }) {
                   <Trans i18nKey="nodeDedup.disabledInfo" components={{ strong: <strong /> }} />
                 </>
               )}
+            </Typography>
+          </Alert>
+          <FormControlLabel
+            control={<Switch checked={landingIPDedupEnabled} onChange={(e) => setLandingIPDedupEnabled(e.target.checked)} />}
+            label={t('nodeDedup.landingIPEnable')}
+          />
+          <Alert severity="info" variant="standard">
+            <Typography variant="body2">
+              <Trans i18nKey="nodeDedup.landingIPInfo" components={{ strong: <strong /> }} />
             </Typography>
           </Alert>
           <Stack direction="row" justifyContent="flex-end">

@@ -131,6 +131,7 @@ func init() {
 	nodeCache.AddIndex("sourceID", func(n Node) string { return fmt.Sprintf("%d", n.SourceID) })
 	nodeCache.AddIndex("name", func(n Node) string { return n.Name })
 	nodeCache.AddIndex("contentHash", func(n Node) string { return n.ContentHash })
+	nodeCache.AddIndex("landingIP", func(n Node) string { return n.LandingIP })
 }
 
 func hashNodeLink(link string) string {
@@ -711,6 +712,111 @@ func BatchUpdateSpeedResults(results []SpeedTestResult) error {
 
 	utils.Info("批量更新测速结果完成: 尝试 %d 个，成功 %d 个 (其中 %d 个跳过速度更新)", totalAttempts, successCount, len(skipSpeedResults))
 	return nil
+}
+
+// CleanupLandingIPDuplicates 基于落地IP（出口IP）清理跨机场重复节点。
+// 当全局"基于出口IP去重"开关开启时调用：对拥有非空落地IP的节点分组，
+// 每组仅保留"质量最优"的节点，其余节点删除（同时清理订阅关联）。
+// 返回删除的节点数量。
+//
+// 质量评分规则（分数越低越优）：
+//   - 延迟/速度均成功测试的节点优先
+//   - 其次比较延迟（越小越好）
+//   - 再次比较速度（越大越好）
+//
+// 手动添加的节点（SourceID == 0）始终保留，不参与删除。
+func CleanupLandingIPDuplicates() int {
+	if !IsLandingIPDedupEnabled() {
+		return 0
+	}
+
+	// 收集所有拥有非空落地IP的节点
+	hasLandingIP := nodeCache.Filter(func(n Node) bool {
+		return n.LandingIP != ""
+	})
+	if len(hasLandingIP) <= 1 {
+		return 0
+	}
+
+	// 按落地IP分组
+	grouped := make(map[string][]Node)
+	for _, n := range hasLandingIP {
+		grouped[n.LandingIP] = append(grouped[n.LandingIP], n)
+	}
+
+	var idsToDelete []int
+	for landingIP, nodes := range grouped {
+		if len(nodes) <= 1 {
+			continue
+		}
+
+		keepID := pickBestLandingIPNode(nodes)
+		for _, n := range nodes {
+			if n.ID == keepID {
+				continue
+			}
+			// 手动节点始终保留
+			if n.SourceID == 0 {
+				continue
+			}
+			idsToDelete = append(idsToDelete, n.ID)
+		}
+		utils.Info("出口IP去重: IP【%s】共 %d 个节点，保留 ID=%d (%s)", landingIP, len(nodes), keepID, nodeNameForLog(hasLandingIP, keepID))
+	}
+
+	if len(idsToDelete) == 0 {
+		return 0
+	}
+	if err := BatchDel(idsToDelete); err != nil {
+		utils.Error("出口IP去重批量删除失败: %v", err)
+		return 0
+	}
+	utils.Info("出口IP去重: 删除 %d 个重复节点", len(idsToDelete))
+	return len(idsToDelete)
+}
+
+// pickBestLandingIPNode 从同落地IP的节点中选择一个质量最优节点保留。
+// 返回保留的节点ID。
+func pickBestLandingIPNode(nodes []Node) int {
+	best := nodes[0]
+	bestScore := landingIPNodeQualityScore(best)
+	for _, n := range nodes[1:] {
+		score := landingIPNodeQualityScore(n)
+		if score < bestScore || (score == bestScore && n.ID < best.ID) {
+			best = n
+			bestScore = score
+		}
+	}
+	return best.ID
+}
+
+// landingIPNodeQualityScore 计算节点质量评分（数值越小越优）。
+func landingIPNodeQualityScore(n Node) int {
+	// 手动节点优先保留
+	if n.SourceID == 0 {
+		return -1000000
+	}
+	score := 0
+	if n.DelayStatus == "" || n.SpeedStatus == "" {
+		score += 1000 // 未完全测速
+	} else if n.DelayStatus != "success" || n.SpeedStatus != "success" {
+		score += 500 // 测速失败
+	}
+	// 延迟越低越好（以秒计）
+	score += n.DelayTime
+	// 速度越高越好（用较大的惩罚值让速度优势体现）
+	score -= int(n.Speed * 1000)
+	return score
+}
+
+// nodeNameForLog 获取节点名称用于日志（避免持有结构体切片匹配复杂化）。
+func nodeNameForLog(nodes []Node, id int) string {
+	for _, n := range nodes {
+		if n.ID == id {
+			return n.Name
+		}
+	}
+	return fmt.Sprintf("%d", id)
 }
 
 // speedResultField 定义测速结果字段的映射关系
@@ -2868,4 +2974,45 @@ func GetOtherNodeByContentHashAndSourceID(contentHash string, sourceID int, excl
 		}
 	}
 	return nil, false
+}
+
+// GetNodeByLandingIP 根据落地IP（出口IP）查找任意节点
+// 返回第一个非空落地IP匹配的节点。
+func GetNodeByLandingIP(landingIP string) (*Node, bool) {
+	if landingIP == "" {
+		return nil, false
+	}
+	nodes := nodeCache.GetByIndex("landingIP", landingIP)
+	if len(nodes) > 0 {
+		return &nodes[0], true
+	}
+	return nil, false
+}
+
+// GetNodesByLandingIPAndSourceID 根据落地IP + SourceID 获取同机场节点
+func GetNodesByLandingIPAndSourceID(landingIP string, sourceID int) []Node {
+	if landingIP == "" {
+		return nil
+	}
+	var result []Node
+	for _, n := range nodeCache.GetByIndex("landingIP", landingIP) {
+		if n.SourceID == sourceID {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+// GetNodesByLandingIP 获取指定落地IP对应的全部节点
+func GetNodesByLandingIP(landingIP string) []Node {
+	if landingIP == "" {
+		return nil
+	}
+	return nodeCache.GetByIndex("landingIP", landingIP)
+}
+
+// IsLandingIPDedupEnabled 读取全局配置：是否启用基于出口IP（落地IP）去重
+func IsLandingIPDedupEnabled() bool {
+	val, _ := GetSetting("cross_airport_dedup_landing_ip")
+	return val == "true"
 }

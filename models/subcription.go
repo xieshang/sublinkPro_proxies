@@ -666,6 +666,43 @@ func (sub *Subcription) ApplyFilters(nodes []Node) []Node {
 	// 7. 应用去重规则
 	result = sub.ApplyDeduplication(result)
 
+	// 8. 基于出口IP（落地IP）去重
+	// 全局开关开启时，对拥有非空落地IP的节点，同出口IP只保留质量最优的第一个（保持原顺序）
+	if IsLandingIPDedupEnabled() {
+		result = deduplicateByLandingIP(result)
+	}
+
+	return result
+}
+
+// deduplicateByLandingIP 按落地IP（出口IP）去重，同出口IP仅保留第一个。
+// 仅对非空落地IP参与去重；空落地IP节点始终保留。
+func deduplicateByLandingIP(nodes []Node) []Node {
+	seen := make(map[string]bool)
+	hasLandingIP := false
+	for _, n := range nodes {
+		if n.LandingIP != "" {
+			hasLandingIP = true
+			break
+		}
+	}
+	if !hasLandingIP {
+		return nodes
+	}
+
+	var result []Node
+	for _, node := range nodes {
+		ip := strings.TrimSpace(node.LandingIP)
+		if ip == "" {
+			result = append(result, node)
+			continue
+		}
+		if !seen[ip] {
+			seen[ip] = true
+			result = append(result, node)
+		}
+	}
+	utils.Info("出口IP去重(订阅输出): 原%d个 -> %d个", len(nodes), len(result))
 	return result
 }
 

@@ -571,6 +571,8 @@
     "enable": "启用跨机场去重",
     "enabledInfo": "当前为<strong>开启</strong>状态：不同机场间配置完全相同的节点（ContentHash 一致）只保留最先入库的一份，避免重复。",
     "disabledInfo": "当前为<strong>关闭</strong>状态：每个机场独立保留自己的节点，即使不同机场存在配置完全相同的节点也会各自入库。同一机场内的重复节点仍然会被去重。",
+    "landingIPEnable": "基于出口IP去重",
+    "landingIPInfo": "当前为<strong>开启</strong>状态：测速获取出口IP（落地IP）后，跨机场自动清理/过滤同出口IP的重复节点，只保留质量最优的一份。节点需先进行延迟/速度检测以获取出口IP。",
     "messages": {
       "saveSuccess": "节点去重设置保存成功",
       "saveFailed": "保存失败"
@@ -1920,6 +1922,7 @@
       "source": "来源",
       "tags": "标签",
       "country": "国家",
+      "landingIP": "出口IP",
       "delay": "延迟",
       "speed": "速度",
       "ipFeatures": "IP特征",

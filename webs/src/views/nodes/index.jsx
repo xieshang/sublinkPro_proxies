@@ -83,6 +83,7 @@ const DEFAULT_COLUMN_WIDTHS = {
   source: 120,
   tags: 120,
   country: 80,
+  landingIP: 140,
   delay: 130,
   speed: 130,
   ipFeatures: 240,

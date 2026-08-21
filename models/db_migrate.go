@@ -369,6 +369,31 @@ func RunMigrations() error {
 		utils.Error("执行迁移 0037_normalize_host_hostnames 失败: %v", err)
 	}
 
+	if err := database.RunCustomMigration("0038_add_github_crawl_test_schedule_fields", func() error {
+		if err := db.AutoMigrate(&GitHubCrawlConfig{}, &GitHubCrawlNode{}); err != nil {
+			return err
+		}
+		// 兼容历史数据：给已有的独立节点补默认值
+		if err := db.Model(&GitHubCrawlNode{}).
+			Where("consecutive_failures IS NULL").
+			Update("consecutive_failures", 0).Error; err != nil {
+			return err
+		}
+		if err := db.Model(&GitHubCrawlConfig{}).
+			Where("test_failure_threshold IS NULL").
+			Update("test_failure_threshold", 3).Error; err != nil {
+			return err
+		}
+		if err := db.Model(&GitHubCrawlConfig{}).
+			Where("test_cron_expr IS NULL").
+			Update("test_cron_expr", "").Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		utils.Error("执行迁移 0038_add_github_crawl_test_schedule_fields 失败: %v", err)
+	}
+
 	if err := database.RunCustomMigration("0024_migrate_legacy_webhook_settings", func() error {
 		legacyURL, _ := GetSetting("webhook_url")
 		legacyMethod, _ := GetSetting("webhook_method")
