@@ -27,6 +27,7 @@ import (
 	"sublink/services/scheduler"
 	"sublink/services/sse"
 	"sublink/services/telegram"
+	"sublink/services/updater"
 	"sublink/settings"
 	"sublink/utils"
 	"syscall"
@@ -409,6 +410,10 @@ func Run() {
 	utils.Info("日志等级: %s", utils.GetLogLevel())
 
 	// 初始化gin框架
+	// 生产环境（非 debug 日志等级）使用 ReleaseMode，避免 gin 每请求输出调试路由日志拖慢响应
+	if utils.GetLogLevel() != "debug" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	r := gin.Default()
 	trustedProxies := cfg.TrustedProxies
 	if len(trustedProxies) == 0 {
@@ -651,6 +656,7 @@ func Run() {
 	routers.GroupSort(r)
 	routers.NodeCheck(r)
 	routers.CountryRule(r)
+	routers.Updater(r)
 
 	// 处理前端路由 (SPA History Mode) 和静态文件
 	// 必须在所有 backend 路由注册之后注册
@@ -748,6 +754,9 @@ func Run() {
 	}
 	shutdownCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignal()
+
+	// 注入升级模块的优雅停机触发器（Windows 自重启依赖它释放端口）
+	updater.SetShutdownTrigger(stopSignal)
 
 	go func() {
 		<-shutdownCtx.Done()

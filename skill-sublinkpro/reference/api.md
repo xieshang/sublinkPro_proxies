@@ -705,7 +705,7 @@ Base: `/api/v1/settings` (write bodies are JSON unless noted; most writes are de
 
 **System domain:** **GET** `/settings/system-domain` · **POST** `/settings/system-domain`
 
-**Node dedup:** **GET** `/settings/node-dedup` · **POST** `/settings/node-dedup`
+**Node auto-processing (dedup + consecutive-failure auto delete):** **GET** `/settings/node-dedup` · **POST** `/settings/node-dedup`
 
 **Global node processing:** **GET** `/settings/global-node-processing` · **POST** `/settings/global-node-processing` (`{nodeNameWhitelist, nodeNameBlacklist, protocolWhitelist, protocolBlacklist, nodeNamePreprocess}`)
 
@@ -760,6 +760,21 @@ Base: `/api/v1/total`
 
 ---
 
+## Updater（应用升级 / 成品库）
+
+Base: `/api/v1/updater` (auth-protected; writes are demo-restricted). Manages the self-upgrade pipeline and the local build-artifact library. Full details: `docs/features/system-update.md`.
+
+- **GET** `/status` — current version, platform (`{os,arch,ext}`), exe path, saved config, busy flag, last operation result.
+- **GET** `/config` / **PUT** `/config` (JSON) — upgrade source settings: `{sourceType: "manifest"|"template"|"github", manifestUrl, templateUrl, githubRepo ("owner/repo"), githubToken (optional), useProxy, keepArtifacts}`.
+- **GET** `/remote/versions` — fetch + parse the remote source. `manifest`: parse versions.json; `github`: enumerate ALL releases via the GitHub API and platform-match assets by filename; returns versions with per-file `matched`/`installable` flags for the running platform. Template mode returns the rendered URL instead.
+- **POST** `/upgrade` (JSON `{version}`, empty = latest) — async start: download → sha256 → extract → test-run (`--version`) → swap → restart. Progress arrives as a `system_update` task over SSE.
+- **POST** `/upload` (multipart/form-data: `file` = binary or zip/tar.gz ≤512MB, optional `version`) — manual upload & upgrade: runs test-mode trial → snapshot → atomic swap → restart automatically after upload.
+- **GET** `/artifacts` — local artifact ledger entries (`active`/`backup`/`archived`).
+- **POST** `/artifacts/:id/rollback` — verify stored artifact via test mode, swap it in, restart.
+- **DELETE** `/artifacts/:id` — remove a non-active artifact file + ledger entry.
+
+---
+
 ## Notes
 
 - **Demo mode:** write endpoints marked demo-restricted are blocked when the instance runs in demo mode.
@@ -804,7 +819,10 @@ Base: `/api/v1/total`
 - `TestFailureThreshold` / `TestAutoDeleteEnabled`：连续失败自动删除阈值与开关
 - 响应额外字段：`lastTestTime` / `lastTestStatus` / `lastTestMessage`；独立节点含 `consecutiveFailures`
 
-### 节点去重设置
+### 节点自动处理设置（原节点去重）
 - **GET/POST** `/settings/node-dedup`
-- POST 请求体：`{crossAirportDedupEnabled, landingIPDedupEnabled}`（均可选，至少一项）
+- GET 响应 data：`{crossAirportDedupEnabled, landingIPDedupEnabled, autoDeleteEnabled, autoDeleteThreshold, autoDeleteGroups}`
+- POST 请求体（均可选，至少一项，未传字段保持原值）：
+  - `{crossAirportDedupEnabled, landingIPDedupEnabled}` — 去重开关
+  - `autoDeleteEnabled` (bool) + `autoDeleteThreshold` (int, 1-20 默认3) + `autoDeleteGroups` ([]string, 空=全部分组) — 连续检测失败自动删除：每轮节点检测后延迟成功清零/失败+1，连续失败达阈值且分组命中的节点自动删除
 - `landingIPDedupEnabled=true` 时：测速获取出口 IP 后，订阅输出按出口 IP 过滤重复节点，且测速完成后自动清理同出口 IP 的跨机场重复节点（保留质量最优者）

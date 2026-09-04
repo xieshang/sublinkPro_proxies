@@ -280,3 +280,17 @@ services:
 > **Advanced Watchtower configuration**:
 > - Set `WATCHTOWER_NOTIFICATIONS` to configure update notifications, including email, Slack, Gotify, and others
 > - See the [official Watchtower documentation](https://containrrr.dev/watchtower/) for more settings
+
+---
+
+## 🚀 Built-in Application Upgrade (alternative to image updates)
+
+SublinkPro also ships a self-upgrade system: open **System → System Updates**, point it at a JSON version manifest, and it downloads the artifact for the running platform, verifies it with a test-mode trial run, swaps the binary in place, and restarts — with one-click rollback to previously stored versions.
+
+For Docker deployments:
+
+- The artifact library lives under `./db/updater/` (persisted by the standard `./db:/app/db` volume), so rollback points survive container recreation.
+- Inside the container the restart is an in-place `exec`; no special `restart:` policy or extra privileges are required. Expect a few seconds of downtime per upgrade.
+- Each GitHub release publishes a `versions.json` manifest asset. The stable manifest URL is:
+  `https://github.com/ZeroDeng01/sublinkPro/releases/latest/download/versions.json`
+- ⚠️ Choose ONE primary update channel: `docker compose pull` reverts an in-app upgraded binary back to the image version. See [system-update feature guide](features/system-update.md) for details.

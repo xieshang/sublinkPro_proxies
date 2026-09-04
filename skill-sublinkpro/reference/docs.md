@@ -67,6 +67,7 @@ suffix for Chinese.
 | Cloudflare Tunnel — create tunnel, token, public access | `docs/features/cloudflare-tunnel.md` |
 | Telegram Bot — command list, setup | `docs/features/telegram-bot.md` |
 | Multi-factor auth (MFA) — TOTP setup, recovery codes, emergency reset | `docs/features/mfa.md` |
+| App upgrade & artifact library — JSON version manifest, platform matching, test-mode verification, rollback | `docs/features/system-update.md` |
 | Script support — node filtering, content post-processing, function reference | `docs/script_support.md` |
 
 ### For developers

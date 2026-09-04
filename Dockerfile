@@ -85,6 +85,9 @@ RUN apk add --no-cache tzdata ca-certificates curl && \
     fi
 RUN mkdir -p /app/db /app/logs /app/template && chmod 777 /app/db /app/logs /app/template
 
+# 应用升级成品库目录（versions.json 账本 + 历史成品），位于 /app/db 下随卷持久化
+RUN mkdir -p /app/db/updater/artifacts /app/db/updater/staging && chmod -R 777 /app/db/updater
+
 COPY --from=backend-builder /app/sublinkPro /app/sublinkPro
 COPY --from=backend-builder /app/static /app/static
 

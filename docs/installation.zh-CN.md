@@ -289,3 +289,17 @@ services:
 > **Watchtower 高级配置**：
 > - 可以设置 `WATCHTOWER_NOTIFICATIONS` 环境变量来配置更新通知（支持邮件、Slack、Gotify 等）
 > - 更多配置请参考 [Watchtower 官方文档](https://containrrr.dev/watchtower/)
+
+---
+
+## 🚀 应用内自升级（镜像更新之外的替代方案）
+
+SublinkPro 内置自升级系统：打开 **系统 → 系统更新**，配置 JSON 版本清单后，应用会自动下载与运行平台匹配的成品，test 模式试运行验证，原地替换二进制并重启，同时支持一键回退到历史版本。
+
+Docker 部署注意事项：
+
+- 成品库位于 `./db/updater/`（随标准卷 `./db:/app/db` 持久化），容器重建后回退点依然有效
+- 容器内重启采用原地 exec，无需特殊 `restart:` 策略或额外权限；每次升级服务会短暂不可用数秒
+- 每个 GitHub Release 都会发布 `versions.json` 清单资产，稳定清单地址为：
+  `https://github.com/ZeroDeng01/sublinkPro/releases/latest/download/versions.json`
+- ⚠️ 请选择一种主要更新方式：`docker compose pull` 会把应用内已升级的二进制还原为镜像自带版本。详见[应用升级功能文档](features/system-update.zh-CN.md)。

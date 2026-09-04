@@ -96,7 +96,7 @@
       "script": "Script Management",
       "accessKey": "API Keys",
       "system": "System Settings",
-      "changelog": "Changelog"
+      "changelog": "System Updates"
     },
     "items": {
       "dashboard": "Dashboard",
@@ -114,7 +114,7 @@
       "countryRules": "Country Rules",
       "webhooks": "Webhooks",
       "monitor": "Monitor",
-      "changelog": "Changelog",
+      "changelog": "System Updates",
       "userCenter": "User Center",
       "appSettings": "Settings",
       "githubCrawl": "GitHub Crawler"
@@ -566,15 +566,23 @@
     }
   },
   "nodeDedup": {
-    "title": "Cross-airport node deduplication",
-    "subheader": "Control whether node content is deduplicated across different airports",
+    "title": "Node Auto-Processing",
+    "subheader": "Automated rules: node content deduplication and consecutive-failure auto cleanup",
     "enable": "Enable cross-airport deduplication",
     "enabledInfo": "Currently <strong>enabled</strong>: nodes with identical configuration across airports (same ContentHash) keep only the first imported copy to avoid duplicates.",
     "disabledInfo": "Currently <strong>disabled</strong>: each airport keeps its own nodes even if another airport has identical node content. Duplicate nodes inside the same airport are still deduplicated.",
     "landingIPEnable": "Deduplicate by exit IP",
     "landingIPInfo": "Currently <strong>enabled</strong>: after speed testing obtains the exit IP (landing IP), duplicate nodes sharing the same exit IP across airports are automatically cleaned/filtered, keeping only the one with the best quality. Nodes need to be latency/speed tested first to obtain the exit IP.",
+    "autoDelete": {
+      "sectionTitle": "Consecutive-failure auto delete",
+      "enable": "Enable consecutive-failure auto delete",
+      "threshold": "Failure threshold (times)",
+      "groups": "Scoped groups",
+      "groupsPlaceholder": "Leave empty for all groups",
+      "info": "Counters are maintained automatically after each check round: a <strong>successful latency check resets to 0, a failure adds +1</strong>. Nodes whose consecutive failures reach the threshold are <strong>automatically deleted from the node library</strong>, scoped to the selected groups (multi-select). Deletion is irreversible — choose the threshold carefully."
+    },
     "messages": {
-      "saveSuccess": "Node deduplication settings saved",
+      "saveSuccess": "Node auto-processing settings saved",
       "saveFailed": "Save failed"
     }
   },
@@ -593,7 +601,7 @@
       "profile": "Profile",
       "subscriptionAddress": "Subscription address",
       "telegram": "Telegram bot",
-      "nodeDedup": "Node deduplication",
+      "nodeDedup": "Node auto-processing",
       "globalNodeProcessing": "Global node processing",
       "aiAssistant": "AI Assistant",
       "subStore": "Sub-Store",
@@ -3321,6 +3329,116 @@
   "search": {
     "placeholder": "Search...",
     "ariaLabel": "Search"
+  },
+  "systemUpdate": {
+    "status": {
+      "title": "Application Upgrade",
+      "refresh": "Refresh",
+      "currentVersion": "Current version",
+      "platform": "Platform",
+      "exePath": "Executable path",
+      "state": "State",
+      "idle": "Idle",
+      "busy": "Upgrade/rollback in progress",
+      "upgradeAction": "Upgrade",
+      "rollbackAction": "Rollback",
+      "op": {
+        "running": "Running",
+        "success": "Success",
+        "failed": "Failed"
+      }
+    },
+    "source": {
+      "title": "Upgrade Source",
+      "sourceType": "Source type",
+      "typeManifest": "JSON version manifest",
+      "typeManifestTip": "A manifest records multiple versions with per-platform build artifacts; install or roll back to any listed version (recommended)",
+      "typeTemplate": "Single-file template URL",
+      "typeTemplateTip": "Locate the current platform's download file via {os} {arch} {ext} {version} placeholders",
+      "typeGitHub": "GitHub Releases",
+      "typeGitHubTip": "Enumerate all historical releases and assets of a repository, auto-matched per platform — no versions.json needed",
+      "manifestUrl": "Manifest URL (versions.json)",
+      "templateUrl": "Download URL template",
+      "templateHelper": "Placeholders: {os}, {arch}, {ext}, {version}",
+      "githubRepo": "Repository (owner/repo)",
+      "githubToken": "GitHub Token (optional)",
+      "githubTokenSet": "Configured (type to override)",
+      "githubTokenHelper": "For private repos or rate-limit relief; stored in local config only",
+      "useProxy": "Download via",
+      "proxyDirect": "Direct connection",
+      "proxyMihomo": "mihomo proxy node",
+      "keepArtifacts": "Artifacts to keep",
+      "keepN": "Keep latest {{count}}",
+      "save": "Save",
+      "saving": "Saving…",
+      "errors": {
+        "emptyManifestUrl": "Please enter the JSON manifest URL",
+        "emptyTemplateUrl": "Please enter the download URL template",
+        "invalidGitHubRepo": "Repository must be in owner/repo format"
+      },
+      "formatHint": "The release pipeline builds per platform (windows/linux/darwin × amd64/arm64, etc.); the app detects its runtime environment and matches the right file automatically. Test mode verifies the binary by trial-run before replacing."
+    },
+    "remote": {
+      "title": "Remote Version Library",
+      "check": "Check versions",
+      "latest": "Latest",
+      "current": "Running",
+      "notInstallable": "No file for this platform",
+      "installable": "Installable",
+      "upgradeLatest": "Upgrade to latest",
+      "upgradeTo": "Upgrade to {{version}}",
+      "reinstall": "Reinstall this version",
+      "loadFailed": "Failed to fetch remote versions",
+      "empty": "No version info yet. Click \"Check versions\" to fetch the manifest",
+      "templateModeTip": "Template mode cannot list history. You can still download and install the latest artifact via the template URL:"
+    },
+    "artifacts": {
+      "title": "Local Artifact Library",
+      "subtitle": "Downloaded and replaced-out artifacts are all recorded in the versions.json ledger and can be rolled back anytime",
+      "version": "Version",
+      "platform": "Platform",
+      "size": "Size",
+      "status": "Status",
+      "testedAt": "Verified at",
+      "testedAtTip": "Last time the test-mode trial run passed",
+      "actions": "Actions",
+      "active": "Active",
+      "backup": "Backup",
+      "archived": "Archived",
+      "rollback": "Roll back to this version",
+      "delete": "Delete artifact",
+      "upload": "Upload & upgrade",
+      "uploadTip": "Upload a build artifact (binary / zip / tar.gz). It then runs the full pipeline automatically: test-mode trial run → snapshot current version → atomic swap → restart. Failures never affect the running version.",
+      "uploadChoose": "Choose file (max 512MB)",
+      "uploadVersion": "Version (optional)",
+      "uploadVersionHelper": "Leave empty to use the version reported by the trial run",
+      "uploadCancel": "Cancel",
+      "uploadConfirm": "Upload & upgrade",
+      "uploadUploading": "Uploading…",
+      "loadFailed": "Failed to load artifacts",
+      "empty": "Artifact library is empty. After the first successful upgrade, the running version is snapshotted as a rollback point"
+    },
+    "confirm": {
+      "upgradeTitle": "Confirm upgrade?",
+      "upgradeContent": "Version {{version}} will be downloaded and verified in test mode. Once verified it replaces the running binary and the service restarts — expect a brief downtime.",
+      "rollbackTitle": "Confirm rollback?",
+      "rollbackContent": "Restore version {{version}} from the local library (current: {{current}}). The system verifies via test mode first, then swaps and restarts — expect a brief downtime.",
+      "deleteTitle": "Delete artifact",
+      "deleteContent": "Delete the local artifact of version {{version}}? You will no longer be able to roll back to it."
+    },
+    "messages": {
+      "configSaved": "Upgrade source saved",
+      "configSaveFailed": "Failed to save configuration",
+      "upgradeStarted": "Upgrade to {{version}} started. Track progress in Task Center",
+      "upgradeStartFailed": "Failed to start upgrade",
+      "rollbackStarted": "Rollback to {{version}} started",
+      "rollbackStartFailed": "Failed to start rollback",
+      "deleteSuccess": "Artifact deleted",
+      "deleteFailed": "Delete failed",
+      "uploadStarted": "{{file}} uploaded. Upgrade pipeline started (auto swap & restart after test passes)",
+      "uploadFailed": "Upload failed",
+      "loadStatusFailed": "Failed to load upgrade status"
+    }
   },
   "version": {
     "currentSystemVersion": "Current system version",

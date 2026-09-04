@@ -22,41 +22,42 @@ import (
 )
 
 type Node struct {
-	ID                 int    `gorm:"primaryKey"`
-	Link               string //出站代理原始连接
-	LinkHash           string `gorm:"size:64;uniqueIndex" json:"-"`
-	Name               string //系统内节点备注名称
-	LinkName           string //节点原始名称
-	NameMode           string `gorm:"size:16;default:'link'"` // 节点出站名称模式：link=使用原始名称，remark=使用备注名称
-	EffectiveNameValue string `gorm:"-" json:"-"`             // 节点实际出站名称，仅用于运行时响应/脚本上下文
-	Protocol           string `gorm:"size:32;index"`          //协议类型 (vmess, vless, trojan, ss 等)
-	LinkAddress        string //节点原始地址
-	LinkHost           string //节点原始Host
-	LinkPort           string //节点原始端口
-	LinkCountry        string //节点所属国家、落地IP国家
-	LandingIP          string //落地IP地址
-	DialerProxyName    string
-	Source             string `gorm:"default:'manual'"`
-	SourceID           int
-	SourceSort         int `gorm:"default:0"` // 上游订阅中的顺序（从1开始；0表示未初始化）
-	Group              string
-	Speed              float64   `gorm:"default:0"`          // 测速结果(MB/s)
-	DelayTime          int       `gorm:"default:0"`          // 延迟时间(ms)
-	SpeedStatus        string    `gorm:"default:'untested'"` // 速度测试状态: untested, success, timeout, error
-	DelayStatus        string    `gorm:"default:'untested'"` // 延迟测试状态: untested, success, timeout, error
-	LatencyCheckAt     string    // 延迟测试时间
-	SpeedCheckAt       string    // 测速时间
-	CreatedAt          time.Time `gorm:"autoCreateTime" json:"CreatedAt"` // 创建时间
-	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"UpdatedAt"` // 更新时间
-	Tags               string    // 标签ID，逗号分隔，如 "1,3,5"
-	ContentHash        string    `gorm:"index;size:64"` // 节点内容哈希（SHA256），用于全库去重
-	IsBroadcast        bool      `gorm:"default:false"` // IP来源：true=广播IP false=原生IP
-	IsResidential      bool      `gorm:"default:false"` // 是否住宅IP
-	FraudScore         int       `gorm:"default:-1"`    // 欺诈评分（0-100，-1表示未检测）
-	QualityStatus      string    `gorm:"size:32;default:'untested'"`
-	QualityFamily      string    `gorm:"size:16;default:''"`
-	UnlockSummary      string    `gorm:"type:text"`
-	UnlockCheckAt      string
+	ID                  int    `gorm:"primaryKey"`
+	Link                string //出站代理原始连接
+	LinkHash            string `gorm:"size:64;uniqueIndex" json:"-"`
+	Name                string //系统内节点备注名称
+	LinkName            string //节点原始名称
+	NameMode            string `gorm:"size:16;default:'link'"` // 节点出站名称模式：link=使用原始名称，remark=使用备注名称
+	EffectiveNameValue  string `gorm:"-" json:"-"`             // 节点实际出站名称，仅用于运行时响应/脚本上下文
+	Protocol            string `gorm:"size:32;index"`          //协议类型 (vmess, vless, trojan, ss 等)
+	LinkAddress         string //节点原始地址
+	LinkHost            string //节点原始Host
+	LinkPort            string //节点原始端口
+	LinkCountry         string //节点所属国家、落地IP国家
+	LandingIP           string //落地IP地址
+	DialerProxyName     string
+	Source              string `gorm:"default:'manual'"`
+	SourceID            int
+	SourceSort          int `gorm:"default:0"` // 上游订阅中的顺序（从1开始；0表示未初始化）
+	Group               string
+	Speed               float64   `gorm:"default:0"`          // 测速结果(MB/s)
+	DelayTime           int       `gorm:"default:0"`          // 延迟时间(ms)
+	SpeedStatus         string    `gorm:"default:'untested'"` // 速度测试状态: untested, success, timeout, error
+	DelayStatus         string    `gorm:"default:'untested'"` // 延迟测试状态: untested, success, timeout, error
+	LatencyCheckAt      string    // 延迟测试时间
+	SpeedCheckAt        string    // 测速时间
+	CreatedAt           time.Time `gorm:"autoCreateTime" json:"CreatedAt"` // 创建时间
+	UpdatedAt           time.Time `gorm:"autoUpdateTime" json:"UpdatedAt"` // 更新时间
+	Tags                string    // 标签ID，逗号分隔，如 "1,3,5"
+	ContentHash         string    `gorm:"index;size:64"` // 节点内容哈希（SHA256），用于全库去重
+	IsBroadcast         bool      `gorm:"default:false"` // IP来源：true=广播IP false=原生IP
+	IsResidential       bool      `gorm:"default:false"` // 是否住宅IP
+	FraudScore          int       `gorm:"default:-1"`    // 欺诈评分（0-100，-1表示未检测）
+	QualityStatus       string    `gorm:"size:32;default:'untested'"`
+	QualityFamily       string    `gorm:"size:16;default:''"`
+	UnlockSummary       string    `gorm:"type:text"`
+	UnlockCheckAt       string
+	ConsecutiveFailures int `gorm:"default:0"` // 连续检测失败次数（延迟检测成功清零、失败+1；达到阈值可自动删除）
 }
 
 type NodeSelectorItem struct {
@@ -1753,6 +1754,117 @@ func BatchDel(ids []int) error {
 		nodeCache.Delete(id)
 	}
 	return nil
+}
+
+// ---- 连续失败自动删除（应用设置 → 节点自动处理）----
+
+// 节点自动处理相关设置键
+const (
+	SettingKeyNodeAutoDeleteEnabled   = "node_auto_delete_failed_enabled"
+	settingKeyNodeAutoDeleteThreshold = "node_auto_delete_failed_threshold"
+	settingKeyNodeAutoDeleteGroups    = "node_auto_delete_failed_groups"
+
+	// NodeAutoDeleteDefaultThreshold 默认连续失败阈值（用户需求：3 次）
+	NodeAutoDeleteDefaultThreshold = 3
+)
+
+// GetNodeAutoDeleteConfig 读取「连续检测失败自动删除」配置；未配置时返回关闭 + 阈值3 + 全部分组
+func GetNodeAutoDeleteConfig() (enabled bool, threshold int, groups []string) {
+	enabledVal, _ := GetSetting(SettingKeyNodeAutoDeleteEnabled)
+	enabled = enabledVal == "true"
+	threshold = NodeAutoDeleteDefaultThreshold
+	if thresholdVal, _ := GetSetting(settingKeyNodeAutoDeleteThreshold); strings.TrimSpace(thresholdVal) != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(thresholdVal)); err == nil && n >= 1 && n <= 20 {
+			threshold = n
+		}
+	}
+	groups = []string{}
+	if raw, _ := GetSetting(settingKeyNodeAutoDeleteGroups); strings.TrimSpace(raw) != "" {
+		var parsed []string
+		if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
+			for _, g := range parsed {
+				if g = strings.TrimSpace(g); g != "" {
+					groups = append(groups, g)
+				}
+			}
+		}
+	}
+	return enabled, threshold, groups
+}
+
+// SaveNodeAutoDeleteConfig 持久化「连续检测失败自动删除」配置
+func SaveNodeAutoDeleteConfig(enabled bool, threshold int, groups []string) error {
+	if threshold < 1 || threshold > 20 {
+		threshold = NodeAutoDeleteDefaultThreshold
+	}
+	cleanGroups := make([]string, 0, len(groups))
+	for _, g := range groups {
+		if g = strings.TrimSpace(g); g != "" {
+			cleanGroups = append(cleanGroups, g)
+		}
+	}
+	rawGroups, err := json.Marshal(cleanGroups)
+	if err != nil {
+		return err
+	}
+	pairs := map[string]string{
+		SettingKeyNodeAutoDeleteEnabled:   strconv.FormatBool(enabled),
+		settingKeyNodeAutoDeleteThreshold: strconv.Itoa(threshold),
+		settingKeyNodeAutoDeleteGroups:    string(rawGroups),
+	}
+	for k, v := range pairs {
+		if err := SetSetting(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UpdateConsecutiveFailures 批量维护节点连续检测失败计数：
+// 成功集合清零、失败集合 +1（单事务，两个集合均可为空）。
+func UpdateConsecutiveFailures(failedIDs, successIDs []int) error {
+	if len(failedIDs) == 0 && len(successIDs) == 0 {
+		return nil
+	}
+	return database.WithTransaction(func(tx *gorm.DB) error {
+		if len(successIDs) > 0 {
+			if err := tx.Model(&Node{}).Where("id IN ? AND consecutive_failures <> 0", successIDs).Update("consecutive_failures", 0).Error; err != nil {
+				return err
+			}
+		}
+		if len(failedIDs) > 0 {
+			if err := tx.Model(&Node{}).Where("id IN ?", failedIDs).Update("consecutive_failures", gorm.Expr("consecutive_failures + 1")).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteNodesOverFailureThreshold 删除「连续失败次数 ≥ 阈值」且分组命中的节点。
+// groups 为空表示不限分组。返回被删除节点的展示名列表（供日志/通知使用）。
+func DeleteNodesOverFailureThreshold(threshold int, groups []string) ([]string, error) {
+	query := database.DB.Where("consecutive_failures >= ?", threshold)
+	if len(groups) > 0 {
+		query = query.Where("`group` IN ?", groups)
+	}
+	var victims []Node
+	if err := query.Find(&victims).Error; err != nil {
+		return nil, err
+	}
+	if len(victims) == 0 {
+		return nil, nil
+	}
+	ids := make([]int, 0, len(victims))
+	names := make([]string, 0, len(victims))
+	for _, n := range victims {
+		ids = append(ids, n.ID)
+		names = append(names, n.Name)
+	}
+	if err := BatchDel(ids); err != nil {
+		return nil, err
+	}
+	return names, nil
 }
 
 // BatchUpdateGroup 批量更新节点分组 - 使用事务保证原子性

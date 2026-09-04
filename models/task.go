@@ -26,11 +26,12 @@ const (
 type TaskType string
 
 const (
-	TaskTypeSpeedTest         TaskType = "speed_test"   // 节点测速
-	TaskTypeSubUpdate         TaskType = "sub_update"   // 订阅更新
-	TaskTypeTagRule           TaskType = "tag_rule"     // 标签规则
-	TaskTypeDatabaseMigration TaskType = "db_migration" // 数据库迁移
-	TaskTypeGitHubCrawl       TaskType = "github_crawl" // GitHub 节点抓取
+	TaskTypeSpeedTest         TaskType = "speed_test"    // 节点测速
+	TaskTypeSubUpdate         TaskType = "sub_update"    // 订阅更新
+	TaskTypeTagRule           TaskType = "tag_rule"      // 标签规则
+	TaskTypeDatabaseMigration TaskType = "db_migration"  // 数据库迁移
+	TaskTypeGitHubCrawl       TaskType = "github_crawl"  // GitHub 节点抓取
+	TaskTypeSystemUpdate      TaskType = "system_update" // 系统升级/回退
 )
 
 // TaskTrigger 任务触发方式

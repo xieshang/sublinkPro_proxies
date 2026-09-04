@@ -53,6 +53,12 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 	totalNodes := len(nodes)
 	utils.Info("开始执行节点检测，总节点数: %d, 触发类型: %s, 策略: %s", totalNodes, trigger, profileName)
 
+	// 节点ID→分组映射（供连续失败自动删除做分组范围过滤；须在 goto 之前声明）
+	groupOf := make(map[int]string, len(nodes))
+	for i := range nodes {
+		groupOf[nodes[i].ID] = nodes[i].Group
+	}
+
 	// 使用 TaskManager 创建任务
 	tm := getTaskManager()
 	task, ctx, err := tm.CreateTask(models.TaskTypeSpeedTest, profileName, trigger, totalNodes)
@@ -723,13 +729,24 @@ func RunSpeedTestWithConfig(nodes []models.Node, trigger models.TaskTrigger, pro
 		}
 	}
 
-	// 基于出口IP（落地IP）去重：测速拿到出口IP后，跨机场清理同出口IP的重复节点
-	{
-		cleanupCount := models.CleanupLandingIPDuplicates()
-		if cleanupCount > 0 {
+	// 基于出口IP（落地IP）去重：测速拿到出口IP后，跨机场清理同出口IP的重复节点。
+	// 异步执行：批量删除涉及较大事务，移出任务收尾链路可缩短与其它写入的 SQLite 锁争用窗口
+	go func() {
+		if cleanupCount := models.CleanupLandingIPDuplicates(); cleanupCount > 0 {
 			utils.Info("测速完成后出口IP去重: 共清理 %d 个重复节点", cleanupCount)
 		}
-	}
+	}()
+
+	// 连续失败自动删除（应用设置 → 节点自动处理）：延迟检测成功清零、失败+1，
+	// 达到阈值且分组命中的节点异步删除。同样移出收尾链路，避免与结果写入争锁。
+	go func(results []models.SpeedTestResult, groupOf map[int]string) {
+		defer func() {
+			if r := recover(); r != nil {
+				utils.Error("连续失败自动删除发生异常: %v", r)
+			}
+		}()
+		handleAutoDeleteFailedNodes(results, groupOf)
+	}(speedTestResults, groupOf)
 
 	// 批量保存Host映射到数据库（如果开启了持久化）
 	if persistHost && len(hostMappings) > 0 {

@@ -96,7 +96,7 @@
       "script": "脚本管理",
       "accessKey": "API 密钥",
       "system": "系统设置",
-      "changelog": "更新日志"
+      "changelog": "系统更新"
     },
     "items": {
       "dashboard": "仪表盘",
@@ -114,7 +114,7 @@
       "countryRules": "国家规则",
       "webhooks": "Webhook 管理",
       "monitor": "系统监控",
-      "changelog": "更新日志",
+      "changelog": "系统更新",
       "userCenter": "个人中心",
       "appSettings": "应用设置",
       "githubCrawl": "GitHub爬虫"
@@ -566,15 +566,23 @@
     }
   },
   "nodeDedup": {
-    "title": "跨机场节点去重",
-    "subheader": "控制不同机场之间是否进行节点内容去重",
+    "title": "节点自动处理",
+    "subheader": "节点内容去重与连续失败自动清理等自动化处理规则",
     "enable": "启用跨机场去重",
     "enabledInfo": "当前为<strong>开启</strong>状态：不同机场间配置完全相同的节点（ContentHash 一致）只保留最先入库的一份，避免重复。",
     "disabledInfo": "当前为<strong>关闭</strong>状态：每个机场独立保留自己的节点，即使不同机场存在配置完全相同的节点也会各自入库。同一机场内的重复节点仍然会被去重。",
     "landingIPEnable": "基于出口IP去重",
     "landingIPInfo": "当前为<strong>开启</strong>状态：测速获取出口IP（落地IP）后，跨机场自动清理/过滤同出口IP的重复节点，只保留质量最优的一份。节点需先进行延迟/速度检测以获取出口IP。",
+    "autoDelete": {
+      "sectionTitle": "连续失败自动删除",
+      "enable": "启用连续失败自动删除",
+      "threshold": "连续失败阈值（次）",
+      "groups": "作用分组",
+      "groupsPlaceholder": "不选则作用于全部分组",
+      "info": "每轮节点检测完成后自动维护计数：<strong>延迟检测成功清零、失败 +1</strong>；连续失败达到阈值的节点将被<strong>自动从节点库删除</strong>，仅作用于上方勾选的分组（可多选）。删除不可恢复，请谨慎设置阈值。"
+    },
     "messages": {
-      "saveSuccess": "节点去重设置保存成功",
+      "saveSuccess": "节点自动处理设置保存成功",
       "saveFailed": "保存失败"
     }
   },
@@ -593,7 +601,7 @@
       "profile": "个人设置",
       "subscriptionAddress": "订阅地址设置",
       "telegram": "Telegram 机器人",
-      "nodeDedup": "节点去重",
+      "nodeDedup": "节点自动处理",
       "globalNodeProcessing": "全局节点处理",
       "aiAssistant": "AI 助手",
       "subStore": "Sub-Store",
@@ -3321,6 +3329,116 @@
   "search": {
     "placeholder": "搜索...",
     "ariaLabel": "搜索"
+  },
+  "systemUpdate": {
+    "status": {
+      "title": "应用升级",
+      "refresh": "刷新",
+      "currentVersion": "当前版本",
+      "platform": "运行平台",
+      "exePath": "程序路径",
+      "state": "状态",
+      "idle": "空闲",
+      "busy": "升级/回退进行中",
+      "upgradeAction": "升级操作",
+      "rollbackAction": "回退操作",
+      "op": {
+        "running": "进行中",
+        "success": "成功",
+        "failed": "失败"
+      }
+    },
+    "source": {
+      "title": "升级源配置",
+      "sourceType": "升级源类型",
+      "typeManifest": "JSON 版本清单",
+      "typeManifestTip": "清单中记录多个版本及各平台编译成品，支持选择任意版本安装或回退（推荐）",
+      "typeTemplate": "单文件模板地址",
+      "typeTemplateTip": "通过 {os} {arch} {ext} {version} 占位符定位当前平台的下载文件",
+      "typeGitHub": "GitHub Releases",
+      "typeGitHubTip": "直接枚举仓库全部历史发布及其资产，自动按平台匹配，无需 versions.json",
+      "manifestUrl": "清单地址 (versions.json)",
+      "templateUrl": "下载地址模板",
+      "templateHelper": "支持占位符：{os}、{arch}、{ext}、{version}",
+      "githubRepo": "仓库 (owner/repo)",
+      "githubToken": "GitHub Token（可选）",
+      "githubTokenSet": "已配置（输入可覆盖）",
+      "githubTokenHelper": "私有仓库或规避速率限制时填写，仅保存在本机配置中",
+      "useProxy": "下载方式",
+      "proxyDirect": "直连下载",
+      "proxyMihomo": "走 mihomo 代理节点",
+      "keepArtifacts": "成品保留数量",
+      "keepN": "保留最近 {{count}} 个",
+      "save": "保存配置",
+      "saving": "保存中…",
+      "errors": {
+        "emptyManifestUrl": "请填写 JSON 清单地址",
+        "emptyTemplateUrl": "请填写下载地址模板",
+        "invalidGitHubRepo": "仓库格式必须为 owner/repo"
+      },
+      "formatHint": "发布流水线按平台编译（windows/linux/darwin × amd64/arm64 等），应用端会自动识别运行环境并匹配对应文件；test 模式会在替换前试运行验证。"
+    },
+    "remote": {
+      "title": "远程版本库",
+      "check": "检查版本",
+      "latest": "最新版",
+      "current": "当前运行",
+      "notInstallable": "无当前平台文件",
+      "installable": "可安装",
+      "upgradeLatest": "立即升级到最新版",
+      "upgradeTo": "升级到 {{version}}",
+      "reinstall": "重新安装此版本",
+      "loadFailed": "获取远程版本失败",
+      "empty": "暂未获取到版本信息，点击右上角「检查版本」拉取清单",
+      "templateModeTip": "当前为单文件模板模式，无法列出历史版本。可直接按模板地址下载并安装最新产物："
+    },
+    "artifacts": {
+      "title": "本地成品库",
+      "subtitle": "已下载与被替换下来的历史成品均记录在 versions.json 账本中，可随时回退",
+      "version": "版本",
+      "platform": "平台",
+      "size": "大小",
+      "status": "状态",
+      "testedAt": "验证时间",
+      "testedAtTip": "最后一次 test 模式试运行验证时间",
+      "actions": "操作",
+      "active": "使用中",
+      "backup": "历史备份",
+      "archived": "存档",
+      "rollback": "回退到此版本",
+      "delete": "删除成品",
+      "upload": "上传升级",
+      "uploadTip": "上传编译成品（二进制 / zip / tar.gz）。上传后自动执行：test 模式试运行 → 快照当前版 → 原子替换 → 重启，全程无需手动干预；失败不会影响当前运行版本。",
+      "uploadChoose": "选择文件（最大 512MB）",
+      "uploadVersion": "版本号（可选）",
+      "uploadVersionHelper": "留空时以试运行输出版本为准",
+      "uploadCancel": "取消",
+      "uploadConfirm": "上传并升级",
+      "uploadUploading": "上传中…",
+      "loadFailed": "读取成品库失败",
+      "empty": "成品库为空。首次成功升级后，当前版本会自动快照入库作为可回退点"
+    },
+    "confirm": {
+      "upgradeTitle": "确认升级？",
+      "upgradeContent": "将下载版本 {{version}} 并执行 test 模式验证，验证通过后会替换当前程序并自动重启服务，期间服务将短暂不可用。",
+      "rollbackTitle": "确认回退？",
+      "rollbackContent": "将从本地成品库恢复版本 {{version}}（当前为 {{current}}）。系统会先进行 test 验证再替换重启，期间服务将短暂不可用。",
+      "deleteTitle": "删除成品",
+      "deleteContent": "确定删除版本 {{version}} 的本地成品文件吗？删除后将无法回退到该版本。"
+    },
+    "messages": {
+      "configSaved": "升级源配置已保存",
+      "configSaveFailed": "保存配置失败",
+      "upgradeStarted": "升级 {{version}} 已启动，可在任务中心查看进度",
+      "upgradeStartFailed": "启动升级失败",
+      "rollbackStarted": "回退到 {{version}} 已启动",
+      "rollbackStartFailed": "启动回退失败",
+      "deleteSuccess": "成品已删除",
+      "deleteFailed": "删除失败",
+      "uploadStarted": "文件 {{file}} 已上传，升级流水线已启动（test 通过后自动替换重启）",
+      "uploadFailed": "上传失败",
+      "loadStatusFailed": "获取升级状态失败"
+    }
   },
   "version": {
     "currentSystemVersion": "当前系统版本",

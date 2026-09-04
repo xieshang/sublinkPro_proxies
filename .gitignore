@@ -22,3 +22,12 @@ sublinkPro.exe
 /.omo/
 /docs/superpowers/
 /.agents/.tmp/
+
+# Build artifacts and local logs
+/build/
+sublinkpro-linux-*
+docker-build*.log
+docker-build*.stderr.log
+docker-build*.stdout.log
+gcm-diagnose.log
+docker-compose.local.yml

@@ -313,6 +313,54 @@ jobs:
           echo "- \`sublinkPro-darwin-amd64\` - macOS x64" >> changelog.md
           echo "- \`sublinkPro-darwin-arm64\` - macOS ARM64 (Apple Silicon)" >> changelog.md
 
+      - name: Generate upgrade manifest (versions.json)
+        # 应用内「系统升级」功能的数据源：固定资产名 versions.json，
+        # 用户侧稳定地址为 https://github.com/<repo>/releases/latest/download/versions.json
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          PUBLISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}"
+
+          # 文件名 → GOOS/GOARCH 映射（与应用端 runtime.GOOS/GOARCH 匹配）
+          gen_entry() {
+            local file="$1" os="$2" arch="$3"
+            local sum
+            sum=$(sha256sum "build/${file}" | awk '{print $1}')
+            printf '{"os":"%s","arch":"%s","url":"%s/%s","sha256":"%s"},' \
+              "${os}" "${arch}" "${REPO_URL}" "${file}" "${sum}"
+          }
+
+          entries=""
+          entries+="$(gen_entry sublinkPro-linux-amd64      linux amd64)"
+          entries+="$(gen_entry sublinkPro-linux-arm64      linux arm64)"
+          entries+="$(gen_entry sublinkPro-linux-armv7      linux arm)"
+          entries+="$(gen_entry sublinkPro-linux-x86        linux 386)"
+          entries+="$(gen_entry sublinkPro-windows-amd64.exe windows amd64)"
+          entries+="$(gen_entry sublinkPro-windows-x86.exe  windows 386)"
+          entries+="$(gen_entry sublinkPro-darwin-amd64     darwin amd64)"
+          entries+="$(gen_entry sublinkPro-darwin-arm64     darwin arm64)"
+          # 去掉末尾逗号
+          entries="${entries%,}"
+
+          cat > build/versions.json <<EOF
+          {
+            "latest": "${VERSION}",
+            "versions": [
+              {
+                "version": "${VERSION}",
+                "notes": "Release ${VERSION}",
+                "publishedAt": "${PUBLISHED_AT}",
+                "files": [${entries}]
+              }
+            ]
+          }
+          EOF
+
+          # 校验 JSON 合法性与结构完整性
+          jq -e '.latest == $v and (.versions[0].files | length == 8) and ([.versions[0].files[].sha256] | all(length == 64))' --arg v "$VERSION" build/versions.json > /dev/null
+          echo "=== versions.json ==="
+          cat build/versions.json
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
@@ -328,6 +376,7 @@ jobs:
             build/sublinkPro-windows-x86.exe
             build/sublinkPro-darwin-amd64
             build/sublinkPro-darwin-arm64
+            build/versions.json
           draft: false
           prerelease: false
         env:

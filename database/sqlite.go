@@ -73,6 +73,10 @@ func Init() error {
 
 	configureConnectionPool(db, info.Dialect)
 
+	if info.Dialect == DialectSQLite {
+		ensureSQLiteWAL(db)
+	}
+
 	DB = db
 	Dialect = info.Dialect
 	utils.Info("数据库已初始化: driver=%s, dsn=%s", info.Dialect, info.RedactedDSN)
@@ -170,13 +174,7 @@ func buildSQLiteConnectionInfo(rawDSN string) (*dbConnectionInfo, error) {
 	if strings.HasPrefix(strings.ToLower(driverDSN), "sqlite://") {
 		driverDSN = driverDSN[len("sqlite://"):]
 	}
-	driverDSN = mergeQueryParams(driverDSN, map[string]string{
-		"_busy_timeout": "5000",
-		"_journal_mode": "WAL",
-		"_synchronous":  "NORMAL",
-		"_cache_size":   "-64000",
-		"_foreign_keys": "ON",
-	})
+	driverDSN = applySQLitePragmas(driverDSN)
 
 	if err := ensureSQLiteDir(driverDSN); err != nil {
 		return nil, err
@@ -188,6 +186,83 @@ func buildSQLiteConnectionInfo(rawDSN string) (*dbConnectionInfo, error) {
 		DBName:      baseSQLiteName(driverDSN),
 		RedactedDSN: driverDSN,
 	}, nil
+}
+
+// defaultSQLitePragmas SQLite 连接级默认 PRAGMA。
+// 注意：glebarez/go-sqlite（modernc 驱动）仅支持 "_pragma=name(value)" 形式的
+// DSN 参数，mattn/go-sqlite3 风格的 "_busy_timeout"、"_journal_mode" 等会被静默
+// 忽略 —— 曾导致 WAL 未生效、数据库运行在回滚日志模式（读写互斥），在高频写入
+// （定时任务）下出现大量 SQLITE_BUSY。
+var defaultSQLitePragmas = []string{
+	"busy_timeout(5000)",
+	"journal_mode(WAL)",
+	"synchronous(NORMAL)",
+	"cache_size(-64000)",
+	"foreign_keys(ON)",
+}
+
+// applySQLitePragmas 为 DSN 补充缺失的默认 PRAGMA 参数。
+// 用户在自定义 DSN 中显式提供的 _pragma 优先，不覆盖同名 pragma。
+func applySQLitePragmas(driverDSN string) string {
+	base := driverDSN
+	rawQuery := ""
+	if idx := strings.Index(driverDSN, "?"); idx >= 0 {
+		base = driverDSN[:idx]
+		rawQuery = driverDSN[idx+1:]
+	}
+
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		// 无法解析时保守起见直接追加全部默认 pragma
+		for _, p := range defaultSQLitePragmas {
+			rawQuery += "&_pragma=" + url.QueryEscape(p)
+		}
+		return base + "?" + rawQuery
+	}
+
+	existing := make(map[string]bool)
+	for _, p := range values["_pragma"] {
+		name := p
+		if idx := strings.Index(p, "("); idx > 0 {
+			name = strings.TrimSpace(p[:idx])
+		}
+		existing[strings.ToLower(name)] = true
+	}
+
+	for _, p := range defaultSQLitePragmas {
+		name := p
+		if idx := strings.Index(p, "("); idx > 0 {
+			name = strings.TrimSpace(p[:idx])
+		}
+		if !existing[strings.ToLower(name)] {
+			values.Add("_pragma", p)
+		}
+	}
+
+	encoded := values.Encode()
+	if encoded == "" {
+		return base
+	}
+	return base + "?" + encoded
+}
+
+// ensureSQLiteWAL 兜底校验并开启 WAL 模式。
+// journal_mode=WAL 对文件库是持久化设置；此处每次启动显式确认，
+// 防止历史库或异常路径残留回滚日志模式造成读写互斥。
+func ensureSQLiteWAL(db *gorm.DB) {
+	var mode string
+	if err := db.Raw("PRAGMA journal_mode").Scan(&mode).Error; err != nil {
+		utils.Warn("查询 SQLite journal_mode 失败: %v", err)
+		return
+	}
+	if strings.EqualFold(strings.TrimSpace(mode), "wal") {
+		return
+	}
+	if err := db.Exec("PRAGMA journal_mode=WAL").Error; err != nil {
+		utils.Error("开启 SQLite WAL 模式失败: %v", err)
+		return
+	}
+	utils.Info("已将 SQLite journal_mode 从 %s 切换为 WAL", mode)
 }
 
 func baseSQLiteName(driverDSN string) string {
@@ -416,32 +491,6 @@ func quoteIdentifier(dialect, value string) string {
 	default:
 		return value
 	}
-}
-
-func mergeQueryParams(rawValue string, defaults map[string]string) string {
-	base := rawValue
-	rawQuery := ""
-	if idx := strings.Index(rawValue, "?"); idx >= 0 {
-		base = rawValue[:idx]
-		rawQuery = rawValue[idx+1:]
-	}
-
-	values, err := url.ParseQuery(rawQuery)
-	if err != nil {
-		return rawValue
-	}
-
-	for key, value := range defaults {
-		if values.Get(key) == "" {
-			values.Set(key, value)
-		}
-	}
-
-	encoded := values.Encode()
-	if encoded == "" {
-		return base
-	}
-	return base + "?" + encoded
 }
 
 func redactURLDSN(rawDSN string) string {

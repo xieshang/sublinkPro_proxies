@@ -75,13 +75,24 @@ The current `ippure` style API returns fields such as `fraudScore`, `isBroadcast
 
 ## 🧹 Exit IP (Landing IP) Deduplication
 
-In **Application Settings -> Node Deduplication**, enable **Deduplicate by exit IP** (`landingIPDedupEnabled`). After speed tests obtain each node's exit IP:
+In **Application Settings -> Node Auto-Processing** (formerly "Node Deduplication"), enable **Deduplicate by exit IP** (`landingIPDedupEnabled`). After speed tests obtain each node's exit IP:
 
 - **Subscription output**: nodes sharing the same exit IP keep only the first occurrence; empty exit IPs are always kept.
 - **After speed tests complete**: cross-airport duplicates sharing the same exit IP are cleaned automatically, keeping the best-quality node (fully tested first, then lower latency, then higher speed). Manually added nodes are never deleted.
 
 > [!NOTE]
 > Nodes must run latency/speed tests first to obtain an exit IP. The Node Management table/card also shows an **Exit IP** column for inspection.
+
+---
+
+## 🗑️ Consecutive-Failure Auto Delete
+
+In **Application Settings -> Node Auto-Processing**, enable **Consecutive-failure auto delete** (`autoDeleteEnabled`). After each check round completes, counters are maintained automatically:
+
+- A **successful latency check resets to 0**, a **failure adds +1** (timeout/error both count; speed-only results do not change counters).
+- Nodes whose consecutive failures reach the threshold (`autoDeleteThreshold`, default 3, range 1-20) are **deleted from the node library automatically** — including their subscription associations.
+- Scope is controlled by `autoDeleteGroups`: **multi-group selection** supported; empty means all groups. Nodes outside selected groups never participate in counting.
+- Deletion runs asynchronously and is logged with deleted node names and scoped groups. It is irreversible — set the threshold carefully.
 
 ---
 

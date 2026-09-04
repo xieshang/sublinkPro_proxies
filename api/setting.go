@@ -65,27 +65,37 @@ func UpdateSystemDomain(c *gin.Context) {
 	utils.OkWithMsg(c, "保存成功")
 }
 
-// GetNodeDedupConfig 获取节点去重配置
+// GetNodeDedupConfig 获取节点自动处理配置（去重 + 连续失败自动删除）
 func GetNodeDedupConfig(c *gin.Context) {
 	crossAirportDedup, _ := models.GetSetting("cross_airport_dedup_enabled")
 	landingIPDedup, _ := models.GetSetting("cross_airport_dedup_landing_ip")
+	autoDeleteEnabled, autoDeleteThreshold, autoDeleteGroups := models.GetNodeAutoDeleteConfig()
 	utils.OkDetailed(c, "获取成功", gin.H{
 		"crossAirportDedupEnabled": crossAirportDedup != "false",
 		"landingIPDedupEnabled":    landingIPDedup == "true",
+
+		"autoDeleteEnabled":   autoDeleteEnabled,
+		"autoDeleteThreshold": autoDeleteThreshold,
+		"autoDeleteGroups":    autoDeleteGroups,
 	})
 }
 
-// UpdateNodeDedupConfig 更新节点去重配置
+// UpdateNodeDedupConfig 更新节点自动处理配置
 func UpdateNodeDedupConfig(c *gin.Context) {
 	var req struct {
 		CrossAirportDedupEnabled *bool `json:"crossAirportDedupEnabled"`
 		LandingIPDedupEnabled    *bool `json:"landingIPDedupEnabled"`
+
+		AutoDeleteEnabled   *bool     `json:"autoDeleteEnabled"`
+		AutoDeleteThreshold *int      `json:"autoDeleteThreshold"`
+		AutoDeleteGroups    *[]string `json:"autoDeleteGroups"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.FailWithMsg(c, "参数错误")
 		return
 	}
-	if req.CrossAirportDedupEnabled == nil && req.LandingIPDedupEnabled == nil {
+	if req.CrossAirportDedupEnabled == nil && req.LandingIPDedupEnabled == nil &&
+		req.AutoDeleteEnabled == nil && req.AutoDeleteThreshold == nil && req.AutoDeleteGroups == nil {
 		utils.FailWithMsg(c, "缺少必填字段")
 		return
 	}
@@ -105,6 +115,23 @@ func UpdateNodeDedupConfig(c *gin.Context) {
 			value = "false"
 		}
 		if err := models.SetSetting("cross_airport_dedup_landing_ip", value); err != nil {
+			utils.FailWithMsg(c, "保存失败: "+err.Error())
+			return
+		}
+	}
+	if req.AutoDeleteEnabled != nil || req.AutoDeleteThreshold != nil || req.AutoDeleteGroups != nil {
+		// 细粒度更新：未传的字段保持现有值（遵循逐项处理、避免整批覆盖的约定）
+		curEnabled, curThreshold, curGroups := models.GetNodeAutoDeleteConfig()
+		if req.AutoDeleteEnabled != nil {
+			curEnabled = *req.AutoDeleteEnabled
+		}
+		if req.AutoDeleteThreshold != nil {
+			curThreshold = *req.AutoDeleteThreshold
+		}
+		if req.AutoDeleteGroups != nil {
+			curGroups = *req.AutoDeleteGroups
+		}
+		if err := models.SaveNodeAutoDeleteConfig(curEnabled, curThreshold, curGroups); err != nil {
 			utils.FailWithMsg(c, "保存失败: "+err.Error())
 			return
 		}

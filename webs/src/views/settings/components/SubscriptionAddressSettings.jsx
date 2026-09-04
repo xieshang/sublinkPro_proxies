@@ -27,9 +27,12 @@ export default function SubscriptionAddressSettings({ showMessage }) {
   const fetchSubscriptionAddress = async () => {
     try {
       const res = await getSubscriptionAddress();
-      setSubscriptionAddress(res.data?.systemDomain || '');
+      const domain = res.data?.systemDomain || '';
+      // 未配置过订阅地址时，预填当前访问地址作为建议值，避免显示为空
+      setSubscriptionAddress(domain || (typeof window !== 'undefined' ? window.location.origin : ''));
     } catch (error) {
       console.error('获取订阅地址配置失败:', error);
+      setSubscriptionAddress(window.location.origin);
     }
   };
 
@@ -42,7 +45,8 @@ export default function SubscriptionAddressSettings({ showMessage }) {
       setSubscriptionAddress(trimmedSubscriptionAddress);
       showMessage(t('subscriptionAddress.messages.saveSuccess'));
     } catch (error) {
-      showMessage(t('subscriptionAddress.messages.saveFailed', { message: error.response?.data?.message || error.message }), 'error');
+      // 后端统一响应字段为 msg（见 utils/response.go）
+      showMessage(t('subscriptionAddress.messages.saveFailed', { message: error.response?.data?.msg || error.message }), 'error');
     } finally {
       setSaving(false);
     }
