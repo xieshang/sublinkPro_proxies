@@ -804,66 +804,75 @@ export default function GitHubCrawlPage() {
         {message ? <Alert severity="success" onClose={() => setMessage('')}>{message}</Alert> : null}
 
         <Grid container spacing={2}>
+          {/* ── 操作栏卡片 ── */}
           <Grid item xs={12}>
             <Card variant="outlined">
               <CardContent>
                 <Stack spacing={1.5}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems="center">
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Typography variant="h5">
-                          {selectedId ? t('githubCrawl.editConfig', '编辑配置') : t('githubCrawl.newConfig', '新建配置')}
-                        </Typography>
-                        <FormControlLabel
-                          sx={{ ml: 0 }}
-                          control={<Switch checked={!!form.enabled} onChange={(e) => handleToggle(e.target.checked)} />}
-                          label={t('githubCrawl.fields.enabled', '定时启用')}
-                        />
-                      </Stack>
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {selectedId ? (
-                          <Button
-                            color={running ? 'error' : 'primary'}
-                            variant="contained"
-                            startIcon={running ? <IconPlayerStop size={16} /> : <IconPlayerPlay size={16} />}
-                            onClick={handleRun}
-                          >
-                            {running ? t('githubCrawl.stop', '停止') : t('githubCrawl.start', '开始')}
-                          </Button>
-                        ) : null}
-                        <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={() => loadConfigs()}>
-                          {t('common.refresh', '刷新')}
-                        </Button>
-                        <Button variant="contained" disabled={saving} onClick={handleSave}>
-                          {saving ? t('common.saving', '保存中…') : t('common.save', '保存')}
-                        </Button>
-                        {selectedId ? (
-                          <Button color="error" variant="outlined" startIcon={<IconTrash size={16} />} onClick={handleDelete}>
-                            {t('common.delete', '删除')}
-                          </Button>
-                        ) : null}
-                      </Box>
-                    </Stack>
-                    <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <Button color="warning" variant="outlined" startIcon={<IconPlus size={16} />} disabled={!selectedId} onClick={() => openBlacklistDialog()}>
-                        {t('githubCrawl.blacklist.title', '黑名单')}
-                      </Button>
-                      <Box sx={{ flexGrow: 1 }} />
-                      <Chip
-                        size="small"
-                        color={running ? 'error' : 'default'}
-                        label={
-                          running
-                            ? t('githubCrawl.running', '抓取中')
-                            : t('githubCrawl.idle', '未运行')
-                        }
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems="center">
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Typography variant="h5">
+                        {selectedId ? t('githubCrawl.editConfig', '编辑配置') : t('githubCrawl.newConfig', '新建配置')}
+                      </Typography>
+                      <FormControlLabel
+                        sx={{ ml: 0 }}
+                        control={<Switch checked={!!form.enabled} onChange={(e) => handleToggle(e.target.checked)} />}
+                        label={t('githubCrawl.fields.enabled', '定时启用')}
                       />
                     </Stack>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {selectedId ? (
+                        <Button
+                          color={running ? 'error' : 'primary'}
+                          variant="contained"
+                          startIcon={running ? <IconPlayerStop size={16} /> : <IconPlayerPlay size={16} />}
+                          onClick={handleRun}
+                        >
+                          {running ? t('githubCrawl.stop', '停止') : t('githubCrawl.start', '开始')}
+                        </Button>
+                      ) : null}
+                      <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={() => loadConfigs()}>
+                        {t('common.refresh', '刷新')}
+                      </Button>
+                      <Button variant="contained" disabled={saving} onClick={handleSave}>
+                        {saving ? t('common.saving', '保存中…') : t('common.save', '保存')}
+                      </Button>
+                      {selectedId ? (
+                        <Button color="error" variant="outlined" startIcon={<IconTrash size={16} />} onClick={handleDelete}>
+                          {t('common.delete', '删除')}
+                        </Button>
+                      ) : null}
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Button color="warning" variant="outlined" startIcon={<IconPlus size={16} />} disabled={!selectedId} onClick={() => openBlacklistDialog()}>
+                      {t('githubCrawl.blacklist.title', '黑名单')}
+                    </Button>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Chip
+                      size="small"
+                      color={running ? 'error' : 'default'}
+                      label={
+                        running
+                          ? t('githubCrawl.running', '抓取中')
+                          : t('githubCrawl.idle', '未运行')
+                      }
+                    />
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
 
-                  {/* ── 基础信息 ── */}
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="subtitle2" color="text.primary">
+          {/* ── 基础信息卡片 ── */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 600 }}>
                     {t('githubCrawl.sections.basic', '基础信息')}
                   </Typography>
+                  <Divider />
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <TextField
@@ -900,12 +909,20 @@ export default function GitHubCrawlPage() {
                       />
                     </Grid>
                   </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
 
-                  {/* ── 抓取参数 ── */}
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="subtitle2" color="text.primary">
+          {/* ── 抓取参数卡片 ── */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 600 }}>
                     {t('githubCrawl.sections.crawl', '抓取参数')}
                   </Typography>
+                  <Divider />
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField
@@ -980,12 +997,20 @@ export default function GitHubCrawlPage() {
                       </Typography>
                     </Grid>
                   </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
 
-                  {/* ── 定时调度 ── */}
-                  <Divider sx={{ my: 0.5 }} />
-                  <Typography variant="subtitle2" color="text.primary">
+          {/* ── 定时调度卡片 ── */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 600 }}>
                     {t('githubCrawl.sections.schedule', '定时调度')}
                   </Typography>
+                  <Divider />
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <Stack direction="row" spacing={1.5}>
@@ -1011,7 +1036,7 @@ export default function GitHubCrawlPage() {
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                        <Stack spacing={0.5}>
+                        <Stack spacing={0.5} sx={{ width: '100%' }}>
                           <TextField
                             fullWidth
                             size="small"
@@ -1035,19 +1060,30 @@ export default function GitHubCrawlPage() {
                       </Box>
                     </Grid>
                   </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
 
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="subtitle2" color="text.primary">
-                    {t('githubCrawl.testSchedule.title', '独立节点定时全测')}
+          {/* ── 独立节点定时全测卡片 ── */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                    <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 600 }}>
+                      {t('githubCrawl.testSchedule.title', '独立节点定时全测')}
+                    </Typography>
                     {selected?.lastTestTime ? (
-                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      <Typography variant="caption" color="text.secondary">
                         {t('githubCrawl.testSchedule.lastRun', '上次：{{time}} · {{status}}', {
                           time: new Date(selected.lastTestTime).toLocaleString(),
                           status: selected.lastTestStatus || '-'
                         })}
                       </Typography>
                     ) : null}
-                  </Typography>
+                  </Stack>
+                  <Divider />
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={4}>
                       <FormControlLabel
@@ -1138,11 +1174,20 @@ export default function GitHubCrawlPage() {
                       </Typography>
                     </Grid>
                   </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
 
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="subtitle2" color="text.primary">
+          {/* ── 备注卡片 ── */}
+          <Grid item xs={12}>
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 600 }}>
                     {t('githubCrawl.sections.remark', '备注')}
                   </Typography>
+                  <Divider />
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField
