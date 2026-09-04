@@ -237,3 +237,12 @@ docker compose up -d --build --force-recreate
 | ![预览11](docs/images/11.jpg) | ![预览12](docs/images/12.jpg) |
 
 </details>
+
+---
+
+## 📊 Project Stats
+
+<div align="center">
+
+  ![Star History Chart](https://star-history.dera.page/svg?repos=ZeroDeng01/sublinkPro&type=Date)
+</div>
