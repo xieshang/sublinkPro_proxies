@@ -807,48 +807,63 @@ export default function GitHubCrawlPage() {
           <Grid item xs={12}>
             <Card variant="outlined">
               <CardContent>
-                <Stack spacing={2}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between">
-                    <Typography variant="h5">
-                      {selectedId ? t('githubCrawl.editConfig', '编辑配置') : t('githubCrawl.newConfig', '新建配置')}
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <FormControlLabel
-                        control={<Switch checked={!!form.enabled} onChange={(e) => handleToggle(e.target.checked)} />}
-                        label={t('githubCrawl.fields.enabled', '定时启用')}
-                      />
-                      <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={() => loadConfigs()}>
-                        {t('common.refresh', '刷新')}
-                      </Button>
-                      {selectedId ? (
-                        <Button color="error" variant="outlined" startIcon={<IconTrash size={16} />} onClick={handleDelete}>
-                          {t('common.delete', '删除')}
+                <Stack spacing={1.5}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems="center">
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Typography variant="h5">
+                          {selectedId ? t('githubCrawl.editConfig', '编辑配置') : t('githubCrawl.newConfig', '新建配置')}
+                        </Typography>
+                        <FormControlLabel
+                          sx={{ ml: 0 }}
+                          control={<Switch checked={!!form.enabled} onChange={(e) => handleToggle(e.target.checked)} />}
+                          label={t('githubCrawl.fields.enabled', '定时启用')}
+                        />
+                      </Stack>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {selectedId ? (
+                          <Button
+                            color={running ? 'error' : 'primary'}
+                            variant="contained"
+                            startIcon={running ? <IconPlayerStop size={16} /> : <IconPlayerPlay size={16} />}
+                            onClick={handleRun}
+                          >
+                            {running ? t('githubCrawl.stop', '停止') : t('githubCrawl.start', '开始')}
+                          </Button>
+                        ) : null}
+                        <Button variant="outlined" startIcon={<IconRefresh size={16} />} onClick={() => loadConfigs()}>
+                          {t('common.refresh', '刷新')}
                         </Button>
-                      ) : null}
-                      <Button variant="contained" disabled={saving} onClick={handleSave}>
-                        {saving ? t('common.saving', '保存中…') : t('common.save', '保存')}
-                      </Button>
-                      <Button
-                        color="warning"
-                        variant="outlined"
-                        startIcon={<IconPlus size={16} />}
-                        disabled={!selectedId}
-                        onClick={() => openBlacklistDialog()}
-                      >
+                        <Button variant="contained" disabled={saving} onClick={handleSave}>
+                          {saving ? t('common.saving', '保存中…') : t('common.save', '保存')}
+                        </Button>
+                        {selectedId ? (
+                          <Button color="error" variant="outlined" startIcon={<IconTrash size={16} />} onClick={handleDelete}>
+                            {t('common.delete', '删除')}
+                          </Button>
+                        ) : null}
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Button color="warning" variant="outlined" startIcon={<IconPlus size={16} />} disabled={!selectedId} onClick={() => openBlacklistDialog()}>
                         {t('githubCrawl.blacklist.title', '黑名单')}
                       </Button>
-                      <Button
-                        color={running ? 'error' : 'primary'}
-                        variant="contained"
-                        disabled={!selectedId}
-                        startIcon={running ? <IconPlayerStop size={16} /> : <IconPlayerPlay size={16} />}
-                        onClick={handleRun}
-                      >
-                        {running ? t('githubCrawl.stop', '停止') : t('githubCrawl.start', '开始')}
-                      </Button>
+                      <Box sx={{ flexGrow: 1 }} />
+                      <Chip
+                        size="small"
+                        color={running ? 'error' : 'default'}
+                        label={
+                          running
+                            ? t('githubCrawl.running', '抓取中')
+                            : t('githubCrawl.idle', '未运行')
+                        }
+                      />
                     </Stack>
-                  </Stack>
 
+                  {/* ── 基础信息 ── */}
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="subtitle2" color="text.primary">
+                    {t('githubCrawl.sections.basic', '基础信息')}
+                  </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <TextField
@@ -884,6 +899,14 @@ export default function GitHubCrawlPage() {
                         autoComplete="off"
                       />
                     </Grid>
+                  </Grid>
+
+                  {/* ── 抓取参数 ── */}
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="subtitle2" color="text.primary">
+                    {t('githubCrawl.sections.crawl', '抓取参数')}
+                  </Typography>
+                  <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField
                         fullWidth
@@ -896,7 +919,7 @@ export default function GitHubCrawlPage() {
                         helperText={t('githubCrawl.helpers.searchKeywords', '多行或逗号分隔，推荐使用 clash free nodes yaml / mihomo free subscription 等')}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
                         size="small"
@@ -906,7 +929,7 @@ export default function GitHubCrawlPage() {
                         onChange={(e) => setForm({ ...form, searchInterval: Number(e.target.value) || 0 })}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
                         size="small"
@@ -916,7 +939,7 @@ export default function GitHubCrawlPage() {
                         onChange={(e) => setForm({ ...form, collectionInterval: Number(e.target.value) || 0 })}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12}>
                       <TextField
                         fullWidth
                         size="small"
@@ -928,7 +951,43 @@ export default function GitHubCrawlPage() {
                         inputProps={{ min: 1, max: 200 }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={6}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={!!form.autoPromote}
+                            onChange={(e) => setForm({ ...form, autoPromote: e.target.checked })}
+                          />
+                        }
+                        label={t('githubCrawl.fields.autoPromote', '抓取完成后自动加入总节点列表')}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={!!form.useProxy}
+                            onChange={(e) => setForm({ ...form, useProxy: e.target.checked })}
+                          />
+                        }
+                        label={t('githubCrawl.fields.useProxy', '拉取时尝试使用代理')}
+                      />
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {t(
+                          'githubCrawl.helpers.useProxy',
+                          '开启后搜索/拉取文件时优先走可用代理节点；无可用代理则直连'
+                        )}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  {/* ── 定时调度 ── */}
+                  <Divider sx={{ my: 0.5 }} />
+                  <Typography variant="subtitle2" color="text.primary">
+                    {t('githubCrawl.sections.schedule', '定时调度')}
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
                       <Stack direction="row" spacing={1.5}>
                         <TextField
                           fullWidth
@@ -949,46 +1008,36 @@ export default function GitHubCrawlPage() {
                           inputProps={{ min: 0, max: 59 }}
                         />
                       </Stack>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                        {t(
-                          'githubCrawl.helpers.interval',
-                          '按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）'
-                        )}
-                        {form.hour || form.minute
-                          ? ` · ${intervalToCron(form.hour, form.minute)}`
-                          : ''}
-                      </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={4}>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={!!form.autoPromote}
-                            onChange={(e) => setForm({ ...form, autoPromote: e.target.checked })}
+                    <Grid item xs={12} sm={6}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                        <Stack spacing={0.5}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label={t('githubCrawl.fields.cronExpr', 'Cron 表达式')}
+                            value={form.cronExpr}
+                            onChange={(e) => setForm({ ...form, cronExpr: e.target.value })}
+                            placeholder="0 */6 * * *"
+                            helperText={t(
+                              'githubCrawl.helpers.interval',
+                              '按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）'
+                            )}
                           />
-                        }
-                        label={t('githubCrawl.fields.autoPromote', '抓取完成后自动加入总节点列表')}
-                      />
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={!!form.useProxy}
-                            onChange={(e) => setForm({ ...form, useProxy: e.target.checked })}
-                          />
-                        }
-                        label={t('githubCrawl.fields.useProxy', '拉取时尝试使用代理')}
-                      />
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {t(
-                          'githubCrawl.helpers.useProxy',
-                          '开启后搜索/拉取文件时优先走可用代理节点；无可用代理则直连'
-                        )}
-                      </Typography>
+                          {form.hour || form.minute ? (
+                            <Typography variant="caption" color="text.secondary">
+                              {t('githubCrawl.helpers.generatedCron', '生成 Cron：{{cron}}', {
+                                cron: intervalToCron(form.hour, form.minute)
+                              })}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </Box>
                     </Grid>
                   </Grid>
 
                   <Divider sx={{ my: 1 }} />
-                  <Typography variant="subtitle2">
+                  <Typography variant="subtitle2" color="text.primary">
                     {t('githubCrawl.testSchedule.title', '独立节点定时全测')}
                     {selected?.lastTestTime ? (
                       <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
@@ -1090,6 +1139,10 @@ export default function GitHubCrawlPage() {
                     </Grid>
                   </Grid>
 
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" color="text.primary">
+                    {t('githubCrawl.sections.remark', '备注')}
+                  </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField

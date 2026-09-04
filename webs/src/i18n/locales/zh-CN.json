@@ -4052,6 +4052,12 @@
     "rowsPerPage": "每页行数"
   },
   "githubCrawl": {
+    "sections": {
+      "basic": "基础信息",
+      "crawl": "抓取参数",
+      "schedule": "定时调度",
+      "remark": "备注"
+    },
     "fields": {
       "intervalHour": "间隔小时",
       "intervalMinute": "间隔分钟",
@@ -4060,7 +4066,8 @@
     },
     "helpers": {
       "cronExpr": "5 字段格式，如 0 */6 * * *",
-      "interval": "按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）"
+      "interval": "按间隔调度，保存时自动转为 Cron（例：6 小时 → 0 */6 * * *）",
+      "generatedCron": "生成 Cron：{{cron}}"
     },
     "errors": {
       "intervalRequired": "请设置间隔小时或分钟（不能都为 0）"

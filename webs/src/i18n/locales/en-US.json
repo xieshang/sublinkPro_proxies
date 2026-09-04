@@ -4052,6 +4052,12 @@
     "rowsPerPage": "Rows per page"
   },
   "githubCrawl": {
+    "sections": {
+      "basic": "Basic Info",
+      "crawl": "Crawl Settings",
+      "schedule": "Schedule",
+      "remark": "Remark"
+    },
     "fields": {
       "intervalHour": "Interval hours",
       "intervalMinute": "Interval minutes",
@@ -4060,7 +4066,8 @@
     },
     "helpers": {
       "cronExpr": "5-field format, e.g. 0 */6 * * *",
-      "interval": "Interval-based scheduling, automatically converted to Cron on save (e.g. 6 hours → 0 */6 * * *)"
+      "interval": "Interval-based scheduling, automatically converted to Cron on save (e.g. 6 hours → 0 */6 * * *)",
+      "generatedCron": "Generated Cron: {{cron}}"
     },
     "errors": {
       "intervalRequired": "Please set interval hours or minutes (cannot both be 0)"
