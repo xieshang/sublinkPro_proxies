@@ -73,18 +73,18 @@
     ]
   },
   "devDependencies": {
-    "@eslint/compat": "2.1.0",
-    "@eslint/eslintrc": "3.3.6",
+    "@eslint/compat": "2.1.1",
+    "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "9.39.5",
     "@types/react": "19.2.18",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-jsx-a11y": "6.10.2",
-    "eslint-plugin-prettier": "5.5.6",
+    "eslint-plugin-prettier": "5.5.7",
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
-    "prettier": "3.9.6",
-    "sass": "1.103.1",
+    "prettier": "3.9.10",
+    "sass": "1.105.2",
     "vite-plugin-pwa": "^1.2.0"
   },
   "packageManager": "yarn@4.10.3"
